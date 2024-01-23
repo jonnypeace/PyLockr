@@ -1,14 +1,17 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from pathlib import Path
 from pysqlcipher3 import dbapi2 as sqlite
 import init_db, os
+from datetime import timedelta
 
 app = Flask(__name__)
 
 app.secret_key = os.environ.get('APP_SECRET_KEY')
 if not app.secret_key:
     raise ValueError('No APP_SECRET_KEY found in environment variables. Please set it in your .bashrc file.')
+
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30) 
 
 from cryptography.fernet import Fernet
 
@@ -17,6 +20,13 @@ if not key:
     raise ValueError("No FERNET key found in environment variables. Please set it in your .bashrc file.")
 
 cipher_suite = Fernet(key)
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    # Clear the session
+    session.clear()
+    # Redirect to the login page
+    return redirect(url_for('home'))
 
 @app.route('/decrypt_password/<int:password_id>', methods=['GET'])
 def decrypt_password(password_id):
@@ -42,6 +52,77 @@ def decrypt_password(password_id):
         return decrypted_password  # Send the decrypted password back
     else:
         return 'Password not found or access denied', 403  # Or handle as appropriate
+    
+@app.route('/edit_password/<int:password_id>', methods=['GET', 'POST'])
+def edit_password(password_id):
+    if 'user_id' not in session:
+        return redirect(url_for('home'))  # Not logged in, redirect to home
+
+    secure_key = get_secure_key()
+    conn = get_db_connection(secure_key)
+    c = conn.cursor()
+
+    if request.method == 'POST':
+        # Update the password entry
+        name = request.form['name']
+        username = request.form['username']
+        password = request.form['password']
+        c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ? WHERE id = ? AND user_id = ?', 
+                  (name, username, encrypt_password(password), password_id, session['user_id']))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('retrieve_passwords'))
+
+    # For a GET request, retrieve the current password details for the form
+    c.execute('SELECT id, name, username FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+    password_data = c.fetchone()
+    conn.close()
+
+    if password_data:
+        return render_template('edit_password.html', password_data=password_data)
+    else:
+        return 'Password not found or access denied', 403
+
+@app.route('/delete_multiple_passwords', methods=['POST'])
+def delete_multiple_passwords():
+    if 'user_id' not in session:
+        return redirect(url_for('home'))  # Not logged in, redirect to home
+
+    # Get the list of selected password IDs
+    selected_passwords = request.form.getlist('selected_passwords')
+
+    if selected_passwords:
+        secure_key = get_secure_key()
+        conn = get_db_connection(secure_key)
+        c = conn.cursor()
+
+        # Delete each selected password
+        for password_id in selected_passwords:
+            c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+        
+        conn.commit()
+        conn.close()
+
+        flash(f'Deleted {len(selected_passwords)} passwords.', 'success')
+    
+    return redirect(url_for('retrieve_passwords'))
+
+
+@app.route('/delete_password/<int:password_id>')
+def delete_password(password_id):
+    if 'user_id' not in session:
+        return redirect(url_for('home'))  # Not logged in, redirect to home
+
+    secure_key = get_secure_key()
+    conn = get_db_connection(secure_key)
+    c = conn.cursor()
+
+    # Delete the password entry
+    c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('retrieve_passwords'))
 
 @app.route('/retrieve_passwords')
 def retrieve_passwords():
@@ -56,8 +137,16 @@ def retrieve_passwords():
     conn = get_db_connection(secure_key)
     c = conn.cursor()
     
+    search_query = request.args.get('search')
+    if search_query:
+        # Use a simple LIKE query for basic wildcard searching
+        c.execute("SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ? AND name LIKE ?", 
+                  (session['user_id'], f"%{search_query}%"))
+    else:
+        c.execute("SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?", 
+                  (session['user_id'],))
     # Retrieve all passwords for the logged-in user
-    c.execute('SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?', (session['user_id'],))
+    # c.execute('SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?', (session['user_id'],))
     passwords = c.fetchall()
 
     conn.close()
@@ -103,6 +192,7 @@ def add_password():
 
         conn.commit()
         conn.close()
+        flash('Password added successfully!', 'success')
 
         return redirect(url_for('dashboard'))  # Redirect back to the dashboard
     

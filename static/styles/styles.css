@@ -110,6 +110,10 @@ th, td {
     text-align: left;
 }
 
+td {
+    color: #333;
+}
+
 th {
     background-color: #4CAF50;
     color: white;
@@ -133,4 +137,103 @@ button {
 
 button:hover {
     background-color: #45a049;
+}
+
+.header {
+    /* Add styles for your header */
+    background-color: #f4f4f4;
+    position: fixed; /* or 'sticky' */
+    top: 10px;
+    right: 50px;
+    z-index: 1000;
+    text-align: right;.header {
+        /* Add styles for your header */
+        background-color: #f4f4f4;
+        padding: 10px;
+        text-align: right;
+    }
+    
+    .header form {
+        display: inline;
+    }
+    
+    .header button {
+        /* Add styles for your logout button */
+        margin-left: 50px;
+        padding: 5px 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    
+    .header button:hover {
+        background-color: #45a049;
+    }
+    
+}
+
+.header form {
+    display: inline;
+}
+
+.header button {
+    /* Add styles for your logout button */
+    padding: 5px 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.header button:hover {
+    background-color: #45a049;
+}
+
+.flash {
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.flash.success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+/* Style for the checkbox column */
+th.checkbox-header, td.checkbox-cell {
+    width: 1%; /* Minimize the width of the checkbox column */
+    white-space: nowrap; /* Prevent wrapping of content in this column */
+}
+
+/* Style for checkboxes */
+input[type='checkbox'] {
+    margin-right: 10px; /* Add some margin if needed */
+    /* ... other styles ... */
+}
+
+.delete-selected {
+    margin-top: 10px; /* Add some space between the table and the button */
+    text-align: right; /* Align the button to the right */
+}
+
+.delete-selected button {
+    padding: 5px 10px;
+    background-color: #f44336; /* Red color for delete action */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.delete-selected button:hover {
+    background-color: #d32f2f; /* Darker shade on hover */
 }
