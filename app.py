@@ -137,13 +137,7 @@ def retrieve_passwords():
     conn = get_db_connection(secure_key)
     c = conn.cursor()
     
-    search_query = request.args.get('search')
-    if search_query:
-        # Use a simple LIKE query for basic wildcard searching
-        c.execute("SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ? AND name LIKE ?", 
-                  (session['user_id'], f"%{search_query}%"))
-    else:
-        c.execute("SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?", 
+    c.execute("SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?", 
                   (session['user_id'],))
     # Retrieve all passwords for the logged-in user
     # c.execute('SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?', (session['user_id'],))

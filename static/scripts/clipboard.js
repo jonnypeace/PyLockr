@@ -1,6 +1,5 @@
-function copyToClipboard(element) {
-    var passwordId = element.getAttribute('data-password-id');
-    
+// Updated function to accept a password ID directly
+function copyToClipboard(passwordId) {
     fetch('/decrypt_password/' + passwordId)
         .then(response => response.text())
         .then(text => {

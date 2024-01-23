@@ -237,3 +237,26 @@ input[type='checkbox'] {
 .delete-selected button:hover {
     background-color: #d32f2f; /* Darker shade on hover */
 }
+
+/* DataTables pagination and info text color */
+.dataTables_wrapper .dataTables_paginate .paginate_button,
+.dataTables_wrapper .dataTables_info {
+    color: white !important;
+}
+
+/* DataTables length and filter input text color */
+.dataTables_wrapper .dataTables_length label,
+.dataTables_wrapper .dataTables_filter label {
+    color: white !important;
+}
+
+/* Custom style for DataTables search input */
+.dataTables_filter input {
+    height: 30px; /* Increase the height as needed */
+    padding: 5px 10px; /* Adjust padding to vertically center the text */
+    font-size: 16px; /* Adjust font size if needed */
+    /* Additional styles for aesthetics */
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-left: 5px;
+}
