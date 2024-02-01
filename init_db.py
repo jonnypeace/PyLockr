@@ -17,7 +17,7 @@ def setup_db():
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS passwords
-        ([id] INTEGER PRIMARY KEY, [user_id] INTEGER, [name] TEXT, [username] TEXT, [encrypted_password] TEXT,
+        ([id] INTEGER PRIMARY KEY, [user_id] INTEGER, [name] TEXT, [username] TEXT, [encrypted_password] TEXT, [notes] TEXT,
         FOREIGN KEY(user_id) REFERENCES users(id))
     ''')
 

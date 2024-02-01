@@ -260,3 +260,23 @@ input[type='checkbox'] {
     border-radius: 4px;
     margin-left: 5px;
 }
+
+#notes {
+    width: 97%; /* or a specific width, e.g., 500px */
+    height: 150px; /* or any height that suits your design */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.form-group {
+    margin-bottom: 15px; /* Adjust spacing as needed */
+}
+
+.form-group label {
+    display: block; /* This makes the label take the full width and ensures the textarea starts on a new line */
+    margin-bottom: 5px; /* Spacing between the label and the textarea */
+}
+

@@ -53,6 +53,12 @@ def decrypt_password(password_id):
     else:
         return 'Password not found or access denied', 403  # Or handle as appropriate
     
+def encrypt_data(data):
+    return cipher_suite.encrypt(data.encode()).decode()
+
+def decrypt_data(encrypted_data):
+    return cipher_suite.decrypt(encrypted_data.encode()).decode()
+    
 @app.route('/edit_password/<int:password_id>', methods=['GET', 'POST'])
 def edit_password(password_id):
     if 'user_id' not in session:
@@ -67,19 +73,27 @@ def edit_password(password_id):
         name = request.form['name']
         username = request.form['username']
         password = request.form['password']
-        c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ? WHERE id = ? AND user_id = ?', 
-                  (name, username, encrypt_password(password), password_id, session['user_id']))
+
+        # Encrypt Notes. Can use the password encryption because it does the same thing
+        encrypted_notes = encrypt_data(request.form['notes'])
+
+        c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ?, notes = ? WHERE id = ? AND user_id = ?', 
+                  (name, username, encrypt_password(password), encrypted_notes, password_id, session['user_id']))
         conn.commit()
         conn.close()
         return redirect(url_for('retrieve_passwords'))
 
     # For a GET request, retrieve the current password details for the form
-    c.execute('SELECT id, name, username FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+    c.execute('SELECT name, username, encrypted_password, notes FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+    # c.execute('SELECT id, name, username FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
     password_data = c.fetchone()
     conn.close()
-
+    # print(password_data)
     if password_data:
-        return render_template('edit_password.html', password_data=password_data)
+        decrypted_password = cipher_suite.decrypt(password_data[2]).decode()
+        decrypted_notes = decrypt_data(password_data[3])
+        return render_template('edit_password.html', password_data=password_data, name=password_data[0],
+                                   username=password_data[1], password=decrypted_password, notes=decrypted_notes)
     else:
         return 'Password not found or access denied', 403
 
@@ -172,7 +186,9 @@ def add_password():
         name = request.form['name']
         username = request.form['username']
         password = request.form['password']
-        
+        # notes = request.form['notes']
+
+        encrypted_notes = encrypt_data(request.form['notes'])
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
         
@@ -181,8 +197,8 @@ def add_password():
         c = conn.cursor()
         
         # Insert new password into the passwords table
-        c.execute('INSERT INTO passwords (user_id, name, username, encrypted_password) VALUES (?, ?, ?, ?)', 
-                (session['user_id'], name, username, encrypt_password(password)))
+        c.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, notes) VALUES (?, ?, ?, ?, ?)', 
+                (session['user_id'], name, username, encrypt_password(password), encrypted_notes))
 
         conn.commit()
         conn.close()
