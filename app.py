@@ -1,9 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
 from pathlib import Path
 from pysqlcipher3 import dbapi2 as sqlite
 import init_db, os
 from datetime import timedelta, datetime
+
+
+from html_sanitizer import Sanitizer # type: ignore
+sanitizer = Sanitizer()  # default configuration
 
 app = Flask(__name__)
 
@@ -32,13 +36,11 @@ def backup():
     c.execute('INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)')
     conn.commit()
     conn.close()
-    file_path = 'users.db'
+
+    file_path = Path('users.db')  # Ensure this path is correct and accessible
     attachment_filename = f'backup_jonnys_den_{datetime.now().isoformat(sep="_",timespec="minutes")}.db'
-    
-    # Create a response with send_file and set the attachment header
-    response = Response(send_file(file_path, as_attachment=True))
-    response.headers["Content-Disposition"] = f"attachment; filename={attachment_filename}"
-    return response
+
+    return send_file(file_path, as_attachment=True, download_name=attachment_filename)
 
 @app.route('/logout', methods=['POST'])
 def logout():
@@ -89,12 +91,22 @@ def edit_password(password_id):
 
     if request.method == 'POST':
         # Update the password entry
-        name = request.form['name']
-        username = request.form['username']
-        password = request.form['password']
+        name = sanitizer.sanitize(request.form['name'])
+        username = sanitizer.sanitize(request.form['username'])
+        password = sanitizer.sanitize(request.form['password'])
 
         # Encrypt Notes. Can use the password encryption because it does the same thing
-        encrypted_notes = encrypt_data(request.form['notes'])
+        encrypted_notes = encrypt_data(sanitizer.sanitize(request.form['notes']))
+
+        # Define maximum lengths
+        max_length_name = 50
+        max_length_username = 50
+        max_length_notes = 4096
+
+        # Validate lengths
+        if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes:
+            # Handle error: return an error message or redirect
+            return "Error: Input data too long.", 400
 
         c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ?, notes = ? WHERE id = ? AND user_id = ?', 
                   (name, username, encrypt_password(password), encrypted_notes, password_id, session['user_id']))
@@ -202,12 +214,20 @@ def add_password():
         return redirect(url_for('home'))
 
     if request.method == 'POST':
-        name = request.form['name']
-        username = request.form['username']
-        password = request.form['password']
-        # notes = request.form['notes']
+        name = sanitizer.sanitize(request.form['name'])
+        username = sanitizer.sanitize(request.form['username'])
+        password = sanitizer.sanitize(request.form['password'])
+        # Define maximum lengths
+        max_length_name = 50
+        max_length_username = 50
+        max_length_notes = 4096
 
-        encrypted_notes = encrypt_data(request.form['notes'])
+        # Validate lengths
+        if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes:
+            # Handle error: return an error message or redirect
+            return "Error: Input data too long.", 400
+
+        encrypted_notes = encrypt_data(sanitizer.sanitize(request.form['notes']))
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
         
@@ -288,18 +308,23 @@ def dashboard():
 
     return render_template('dashboard.html', reminder_needed=reminder_needed, last_backup=last_backup)
 
-
-# @app.route('/dashboard')
-# def dashboard():
-#     if 'username' not in session:
-#         return redirect(url_for('home'))  # Redirect to home if not logged in
-#     return render_template('dashboard.html')  # Render the dashboard page for logged-in users
-
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        MIN_PASSWORD_LENGTH = 12
+        if len(password) < MIN_PASSWORD_LENGTH:
+            # If the password is too short, return an error message
+            flash(f'Password must be at least {MIN_PASSWORD_LENGTH} characters long.', 'error')
+            return redirect(url_for('signup'))
+        import re
+
+        password_regex = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+
+        if not password_regex.match(password):
+            flash('Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+            return redirect(url_for('signup'))
         
         # Hash the password for secure storage
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
@@ -321,9 +346,30 @@ def signup():
 
     return render_template('signup.html')  # Render the sign-up page if method is GET
 
+# @app.route('/')
+# def home():
+#     return render_template('login.html')
+
+
 @app.route('/')
 def home():
-    return render_template('login.html')
+    # Render the template as usual
+    content = render_template('login.html')
+
+    # Create a response object from the rendered template
+    response = make_response(content)
+
+    # Define your CSP policy
+    csp_policy = (
+        "default-src 'self';"
+        "script-src 'self' https://code.jquery.com https://cdn.datatables.net;"
+        "object-src 'none';"
+        "style-src 'self' 'unsafe-inline';"
+    )
+    # Add the CSP policy to the response headers
+    response.headers['Content-Security-Policy'] = csp_policy
+
+    return response
 
 # hashed_password = generate_password_hash('your_raw_password', method='sha256')
 # # Store 'hashed_password' in the database, not the raw password
