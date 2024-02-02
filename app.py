@@ -21,8 +21,6 @@ if not key:
 
 cipher_suite = Fernet(key)
 
-print(datetime.now().isoformat(sep='_',timespec='minutes'))
-
 @app.route('/backup')
 def backup():
     # Retrieve the secure passphrase
