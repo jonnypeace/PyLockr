@@ -261,6 +261,8 @@ def get_db_connection(passphrase):
 
 @app.route('/login', methods=['POST'])
 def login():
+
+    global username
     username = request.form['username']
     password = request.form['password']
     
@@ -307,9 +309,47 @@ def dashboard():
 
     return render_template('dashboard.html', reminder_needed=reminder_needed, last_backup=last_backup)
 
+@app.route('/change_user_password', methods=['GET', 'POST'])
+def change_user_password():
+
+    if request.method == 'POST':
+        current_password = request.form['current_password']
+        new_password = request.form['new_password']
+        confirm_new_password = request.form['confirm_new_password']
+
+        # Retrieve the secure passphrase
+        secure_key = get_secure_key()
+        username = session['username']
+        
+        # Connect to the encrypted database (SQLCipher) using the secure key
+        conn = get_db_connection(secure_key)
+        c = conn.cursor()
+
+        # Insert new user into the users table
+        c.execute('SELECT * FROM users WHERE username = ?', (username,))
+        user = c.fetchone()
+        if user and check_password_hash(user[2], current_password):
+            # Check if new password and confirmation match
+            if new_password == confirm_new_password:
+                # Update password
+                new_password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+                c.execute('UPDATE users SET password_hash = ? WHERE username = ?', (new_password_hash, username))
+                conn.commit()
+                flash('Password successfully updated.', 'success')
+            else:
+                flash('New password and confirmation do not match.', 'error')
+        else:
+            flash('Current password is incorrect.', 'error')
+        
+        conn.close()
+        return redirect(url_for('dashboard'))
+
+    return render_template('change_user_password.html')
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
+        global username
         username = request.form['username']
         password = request.form['password']
 
