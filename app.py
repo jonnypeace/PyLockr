@@ -1,9 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 from pathlib import Path
 from pysqlcipher3 import dbapi2 as sqlite
 import init_db, os
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 app = Flask(__name__)
 
@@ -20,6 +20,27 @@ if not key:
     raise ValueError("No FERNET key found in environment variables. Please set it in your .bashrc file.")
 
 cipher_suite = Fernet(key)
+
+print(datetime.now().isoformat(sep='_',timespec='minutes'))
+
+@app.route('/backup')
+def backup():
+    # Retrieve the secure passphrase
+    secure_key = get_secure_key()
+    
+    # Connect to the encrypted database (SQLCipher) using the secure key
+    conn = get_db_connection(secure_key)
+    c = conn.cursor()
+    c.execute('INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)')
+    conn.commit()
+    conn.close()
+    file_path = 'users.db'
+    attachment_filename = f'backup_jonnys_den_{datetime.now().isoformat(sep="_",timespec="minutes")}.db'
+    
+    # Create a response with send_file and set the attachment header
+    response = Response(send_file(file_path, as_attachment=True))
+    response.headers["Content-Disposition"] = f"attachment; filename={attachment_filename}"
+    return response
 
 @app.route('/logout', methods=['POST'])
 def logout():
@@ -246,12 +267,35 @@ def login():
     else:
         return 'Login failed. Check your login details.'
 
-
 @app.route('/dashboard')
 def dashboard():
     if 'username' not in session:
         return redirect(url_for('home'))  # Redirect to home if not logged in
-    return render_template('dashboard.html')  # Render the dashboard page for logged-in users
+    # Retrieve the secure passphrase
+    secure_key = get_secure_key()
+    
+    # Connect to the encrypted database (SQLCipher) using the secure key
+    conn = get_db_connection(secure_key)
+    c = conn.cursor()
+    c.execute('SELECT MAX(backup_date) FROM backup_history')
+    last_backup = c.fetchone()[0]
+    conn.close()
+
+    # Check if the last backup was more than a month ago
+    reminder_needed = False
+    if last_backup:
+        last_backup_date = datetime.strptime(last_backup, '%Y-%m-%d %H:%M:%S')
+        if datetime.now() - last_backup_date > timedelta(days=30):
+            reminder_needed = True
+
+    return render_template('dashboard.html', reminder_needed=reminder_needed, last_backup=last_backup)
+
+
+# @app.route('/dashboard')
+# def dashboard():
+#     if 'username' not in session:
+#         return redirect(url_for('home'))  # Redirect to home if not logged in
+#     return render_template('dashboard.html')  # Render the dashboard page for logged-in users
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():

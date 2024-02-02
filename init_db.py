@@ -20,6 +20,12 @@ def setup_db():
         ([id] INTEGER PRIMARY KEY, [user_id] INTEGER, [name] TEXT, [username] TEXT, [encrypted_password] TEXT, [notes] TEXT,
         FOREIGN KEY(user_id) REFERENCES users(id))
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS backup_history (
+            id INTEGER PRIMARY KEY,
+            backup_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        ''')
 
     conn.commit()
     conn.close()
