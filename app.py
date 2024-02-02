@@ -2,11 +2,10 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 from pathlib import Path
 from pysqlcipher3 import dbapi2 as sqlite
-import init_db, os
+import init_db, os, re
 from datetime import timedelta, datetime
-
-
 from html_sanitizer import Sanitizer # type: ignore
+
 sanitizer = Sanitizer()  # default configuration
 
 app = Flask(__name__)
@@ -313,17 +312,23 @@ def signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        MIN_PASSWORD_LENGTH = 12
-        if len(password) < MIN_PASSWORD_LENGTH:
-            # If the password is too short, return an error message
-            flash(f'Password must be at least {MIN_PASSWORD_LENGTH} characters long.', 'error')
+
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+
+        if password != confirm_password:
+            flash('Passwords do not match. Please try again.', 'error')
             return redirect(url_for('signup'))
-        import re
 
-        password_regex = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+        MIN_PASSWORD_LENGTH = 12
 
-        if not password_regex.match(password):
-            flash('Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+        uppercase_characters = len(re.findall(r"[A-Z]", password))
+        lowercase_characters = len(re.findall(r"[a-z]", password))
+        numerical_characters = len(re.findall(r"[0-9]", password))
+        special_characters = len(re.findall(r"[!@#$%^&*()-_+<>?]", password))
+        
+        if len(password) < MIN_PASSWORD_LENGTH or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
+            flash('Password must be at least 12 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('signup'))
         
         # Hash the password for secure storage
@@ -345,11 +350,6 @@ def signup():
         return redirect(url_for('home'))  # Redirect to the login page after successful registration
 
     return render_template('signup.html')  # Render the sign-up page if method is GET
-
-# @app.route('/')
-# def home():
-#     return render_template('login.html')
-
 
 @app.route('/')
 def home():

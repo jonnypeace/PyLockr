@@ -12,7 +12,7 @@
 //     return array[0];
 // }
 function generatePassword(length) {
-    var charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+<>?";
+    var charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_+<>?";
     var password = "";
     var values = new Uint8Array(length);
     window.crypto.getRandomValues(values);
