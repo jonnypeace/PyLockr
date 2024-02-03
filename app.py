@@ -5,6 +5,13 @@ from pysqlcipher3 import dbapi2 as sqlite
 import init_db, os, re
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer # type: ignore
+import os
+
+min_password_length = int(os.environ.get('MIN_PASSWORD_LENGTH', 12))  # Default to 12 if not set
+session_time = os.environ.get('SESSION_TIMEOUT', 30)
+
+# Assuming your database file is named 'users.db' and is in the root/database of your project directory
+db_path = os.path.join(os.getcwd(), 'database/users.db')
 
 sanitizer = Sanitizer()  # default configuration
 
@@ -14,7 +21,7 @@ app.secret_key = os.environ.get('APP_SECRET_KEY')
 if not app.secret_key:
     raise ValueError('No APP_SECRET_KEY found in environment variables. Please set it in your .bashrc file.')
 
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30) 
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=int(session_time)) 
 
 from cryptography.fernet import Fernet
 
@@ -36,7 +43,7 @@ def backup():
     conn.commit()
     conn.close()
 
-    file_path = Path('users.db')  # Ensure this path is correct and accessible
+    file_path = Path(db_path)  # Ensure this path is correct and accessible
     attachment_filename = f'backup_jonnys_den_{datetime.now().isoformat(sep="_",timespec="minutes")}.db'
 
     return send_file(file_path, as_attachment=True, download_name=attachment_filename)
@@ -254,7 +261,7 @@ def get_secure_key():
     return key
 
 def get_db_connection(passphrase):
-    conn = sqlite.connect('users.db')
+    conn = sqlite.connect(str(db_path))
     cursor = conn.cursor()
     cursor.execute(f"PRAGMA key = '{passphrase}'")
     return conn
@@ -317,6 +324,15 @@ def change_user_password():
         new_password = request.form['new_password']
         confirm_new_password = request.form['confirm_new_password']
 
+        uppercase_characters = len(re.findall(r"[A-Z]", new_password))
+        lowercase_characters = len(re.findall(r"[a-z]", new_password))
+        numerical_characters = len(re.findall(r"[0-9]", new_password))
+        special_characters = len(re.findall(r"[!@#$%^&*()-_+<>?]", new_password))
+        
+        if len(new_password) < min_password_length or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
+            flash('Password must be at least 12 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+            return redirect(url_for('change_user_password'))
+
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
         username = session['username']
@@ -360,14 +376,12 @@ def signup():
             flash('Passwords do not match. Please try again.', 'error')
             return redirect(url_for('signup'))
 
-        MIN_PASSWORD_LENGTH = 12
-
         uppercase_characters = len(re.findall(r"[A-Z]", password))
         lowercase_characters = len(re.findall(r"[a-z]", password))
         numerical_characters = len(re.findall(r"[0-9]", password))
         special_characters = len(re.findall(r"[!@#$%^&*()-_+<>?]", password))
         
-        if len(password) < MIN_PASSWORD_LENGTH or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
+        if len(password) < min_password_length or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
             flash('Password must be at least 12 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('signup'))
         
@@ -414,7 +428,7 @@ def home():
 # hashed_password = generate_password_hash('your_raw_password', method='sha256')
 # # Store 'hashed_password' in the database, not the raw password
 
-db_path = Path('./users.db')
+db_path = Path(db_path)
 print(f"Checking for DB at: {db_path.absolute()}")
 if not db_path.exists():
     print("DB not found, setting up the database...")
