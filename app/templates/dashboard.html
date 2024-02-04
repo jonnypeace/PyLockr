@@ -16,7 +16,7 @@
           {% endif %}
         {% endwith %}
         <h1>Welcome to Jonny's Den Dashboard</h1>
-            <a style="color:rgb(255, 253, 127);" href="{{ url_for('backup') }}">Download Database Backup</a>
+            <a style="color:rgb(255, 253, 127);" href="{{ url_for('main.backup') }}">Download Database Backup</a>
             {% if reminder_needed %}
             <p style="color: red;">It has been over a month since your last backup. Please consider backing up your database.</p>
               {% endif %}
@@ -24,11 +24,11 @@
           <br><br><br><br>
         <div class="actions">
             <!-- Link to Add Password Page -->
-            <a href="{{ url_for('add_password') }}"><button>Add Password</button></a>
+            <a href="{{ url_for('main.add_password') }}"><button>Add Password</button></a>
             <!-- Link to Retrieve Passwords -->
-            <a href="{{ url_for('retrieve_passwords') }}"><button>Retrieve Passwords</button></a>
+            <a href="{{ url_for('main.retrieve_passwords') }}"><button>Retrieve Passwords</button></a>
             <!-- Link to Retrieve Passwords -->
-            <a href="{{ url_for('change_user_password') }}"><button>Change User Password</button></a>
+            <a href="{{ url_for('auth.change_user_password') }}"><button>Change User Password</button></a>
         </div>
     </div>
 </body>

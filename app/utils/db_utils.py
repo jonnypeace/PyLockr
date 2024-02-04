@@ -1,5 +1,13 @@
+#!/usr/bin/env python3
+
 from pysqlcipher3 import dbapi2 as sqlite
 import os
+
+def get_db_connection(passphrase):
+    conn = sqlite.connect(str(db_path))
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA key = '{passphrase}'")
+    return conn
 
 # Assuming your database file is named 'users.db' and is in the root of your project directory
 db_path = os.path.join(os.getcwd(), 'database/users.db')
@@ -9,6 +17,7 @@ def setup_db():
     cursor = conn.cursor()
 
     passphrase = os.environ.get('SQLCIPHER_KEY')
+    print(passphrase)
     if not passphrase:
         raise ValueError("SQLCIPHER_KEY is not set in the environment variables.")
     
