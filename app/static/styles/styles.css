@@ -6,16 +6,16 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: #121212; /* Dark background */
+    background-color: #121212;
 }
 
 form {
-    border: 1px solid #333; /* Darker border */
+    border: 1px solid #333; 
     padding: 20px;
-    box-shadow: 2px 2px 8px rgba(255, 255, 255, 0.1); /* Lighter shadow */
-    background: #222; /* Dark background for the form */
+    box-shadow: 2px 2px 8px rgba(255, 255, 255, 0.1); 
+    background: #222;
     border-radius: 5px;
-    color: #fff; /* Light text */
+    color: #fff; 
 }
 
 input[type="text"],
@@ -24,22 +24,22 @@ input[type="password"] {
     padding: 10px;
     margin: 10px 0;
     display: inline-block;
-    border: 1px solid #555; /* Darker border */
-    background: #333; /* Darker background for inputs */
+    border: 1px solid #555;
+    background: #333; 
     border-radius: 4px;
     box-sizing: border-box;
     font-size: 16px;
-    color: #fff; /* Light text */
+    color: #fff; 
 }
 
 input[type="text"]::placeholder,
 input[type="password"]::placeholder {
-    color: #bbb; /* Lighter placeholder text */
+    color: #bbb;
 }
 
 button[type="submit"] {
     width: 100%;
-    background-color: #4CAF50; /* Keep the button green */
+    background-color: #4CAF50;
     color: white;
     padding: 14px 20px;
     margin: 10px 0;
@@ -54,8 +54,8 @@ button[type="submit"]:hover {
 }
 
 .branding img {
-    width: 600px; /* Adjust as needed */
-    height: 400px; /* Adjust as needed - This effectively sets the "viewport" for the image */
+    width: 600px;
+    height: 400px; /* This effectively sets the "viewport" for the image */
     object-fit: cover; /* This will cover the area with the image, effectively cropping it */
     object-position: center; /* Adjust this if you want to shift the focus area of the image */
     margin-bottom: 10px; /* Space between the logo and the form */
@@ -63,8 +63,7 @@ button[type="submit"]:hover {
 
 .branding {
     text-align: center;
-    margin-bottom: 30px; /* Adjust as needed */
-    /* Removed the background image styles since you are using an <img> tag */
+    margin-bottom: 30px; 
 }
 
 .signup {
@@ -140,14 +139,13 @@ button:hover {
 }
 
 .header {
-    /* Add styles for your header */
     background-color: #f4f4f4;
-    position: fixed; /* or 'sticky' */
+    position: fixed;
     top: 10px;
     right: 50px;
     z-index: 1000;
     text-align: right;.header {
-        /* Add styles for your header */
+
         background-color: #f4f4f4;
         padding: 10px;
         text-align: right;
@@ -158,7 +156,6 @@ button:hover {
     }
     
     .header button {
-        /* Add styles for your logout button */
         margin-left: 50px;
         padding: 5px 10px;
         background-color: #4CAF50;
@@ -180,7 +177,6 @@ button:hover {
 }
 
 .header button {
-    /* Add styles for your logout button */
     padding: 5px 10px;
     background-color: #4CAF50;
     color: white;
@@ -216,7 +212,6 @@ th.checkbox-header, td.checkbox-cell {
 /* Style for checkboxes */
 input[type='checkbox'] {
     margin-right: 10px; /* Add some margin if needed */
-    /* ... other styles ... */
 }
 
 .delete-selected {
@@ -226,7 +221,7 @@ input[type='checkbox'] {
 
 .delete-selected button {
     padding: 5px 10px;
-    background-color: #f44336; /* Red color for delete action */
+    background-color: #f44336;
     color: white;
     border: none;
     border-radius: 4px;
@@ -262,8 +257,8 @@ input[type='checkbox'] {
 }
 
 #notes {
-    width: 97%; /* or a specific width, e.g., 500px */
-    height: 150px; /* or any height that suits your design */
+    width: 97%; 
+    height: 150px; 
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -272,7 +267,7 @@ input[type='checkbox'] {
 }
 
 .form-group {
-    margin-bottom: 15px; /* Adjust spacing as needed */
+    margin-bottom: 15px; 
 }
 
 .form-group label {

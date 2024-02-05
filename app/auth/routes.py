@@ -9,15 +9,17 @@ from app.utils.db_utils import *
 
 @auth.route('/logout', methods=['POST'])
 def logout():
-    # Clear the session
+    '''
+    Logs out and clears the session and redirects to homepage.
+    '''
     session.clear()
-    # Redirect to the login page
     return redirect(url_for('main.home'))
 
 @auth.route('/login', methods=['POST'])
 def login():
-
-    global username
+    '''
+    Logs into website and starts a session.
+    '''
     username = request.form['username']
     password = request.form['password']
     
@@ -43,7 +45,10 @@ def login():
     
 @auth.route('/change_user_password', methods=['GET', 'POST'])
 def change_user_password():
-
+    '''
+    Changes user password for loging into website, and checks for upper/lowercase special character and number, and password length.
+    Default minimum password length is 12.
+    '''
     if request.method == 'POST':
         current_password = request.form['current_password']
         new_password = request.form['new_password']
@@ -55,7 +60,7 @@ def change_user_password():
         special_characters = len(re.findall(r"[!@#$%^&*()-_+<>?]", new_password))
         
         if len(new_password) < current_app.config['MIN_PASSWORD_LENGTH'] or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
-            flash('Password must be at least 12 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('auth.change_user_password'))
 
         # Retrieve the secure passphrase
@@ -89,6 +94,9 @@ def change_user_password():
 
 @auth.route('/signup', methods=['GET', 'POST'])
 def signup():
+    '''
+    Website sign up
+    '''
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -106,7 +114,7 @@ def signup():
         special_characters = len(re.findall(r"[!@#$%^&*()-_+<>?]", password))
         
         if len(password) < current_app.config['MIN_PASSWORD_LENGTH'] or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
-            flash('Password must be at least 12 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('auth.signup'))
         
         # Hash the password for secure storage

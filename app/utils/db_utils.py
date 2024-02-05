@@ -2,18 +2,33 @@
 
 from pysqlcipher3 import dbapi2 as sqlite
 import os
+from flask import current_app
 
 def get_db_connection(passphrase):
-    conn = sqlite.connect(str(db_path))
+    '''
+    get_db_connection
+    -----------------
+
+    passphrase: str
+        for the database
+    
+    Returns:
+        Connection to database
+    '''
+    conn = sqlite.connect(str(current_app.config['DB_PATH']))
     cursor = conn.cursor()
     cursor.execute(f"PRAGMA key = '{passphrase}'")
     return conn
 
-# Assuming your database file is named 'users.db' and is in the root of your project directory
-db_path = os.path.join(os.getcwd(), 'database/users.db')
-
 def setup_db():
-    conn = sqlite.connect(str(db_path))
+    '''
+    Sets up database table for user authentication. Passwords here are hashed.
+
+    Sets up database table for password manager. All password entries here are encrypted.
+
+    Sets up database table for backup times, a prompt for the user to download and keep a copy if it's been a while.
+    '''
+    conn = sqlite.connect(str(current_app.config['DB_PATH']))
     cursor = conn.cursor()
 
     passphrase = os.environ.get('SQLCIPHER_KEY')

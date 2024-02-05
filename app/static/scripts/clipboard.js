@@ -15,7 +15,7 @@ function copyToClipboard(passwordId) {
             // Remove the temporary textarea
             document.body.removeChild(textarea);
 
-            // Optionally, show a message to the user
+            // Show a message to the user
             alert('Password copied to clipboard!');
         })
         .catch(error => console.error('Error:', error));

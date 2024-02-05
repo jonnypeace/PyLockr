@@ -10,6 +10,9 @@ sanitizer = Sanitizer()  # default configuration
 
 @main.route('/')
 def home():
+    '''
+    Content security policy settings. Allows use of jquery datatables
+    '''
     # Render the template as usual
     content = render_template('login.html')
 
@@ -31,6 +34,11 @@ def home():
 
 @main.route('/dashboard')
 def dashboard():
+    '''
+    Dashboard route. Redirects and logs you out if session times out.
+
+    Queries database to retrieve the last time the database was downloaded/backed up.
+    '''
     if 'username' not in session:
         return redirect(url_for('main.home'))  # Redirect to home if not logged in
     # Retrieve the secure passphrase
@@ -55,6 +63,11 @@ def dashboard():
 
 @main.route('/add_password', methods=['GET', 'POST'])
 def add_password():
+    '''
+    Add a new entry into the database.
+
+    Entries are sanaitized, to avoid sql injection
+    '''
     if 'username' not in session:
         # If the user is not logged in, redirect to the login page
         return redirect(url_for('main.home'))
@@ -63,6 +76,7 @@ def add_password():
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
         password = sanitizer.sanitize(request.form['password'])
+
         # Define maximum lengths
         max_length_name = 50
         max_length_username = 50
@@ -83,7 +97,7 @@ def add_password():
         
         # Insert new password into the passwords table
         c.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, notes) VALUES (?, ?, ?, ?, ?)', 
-                (session['user_id'], name, username, encrypt_password(password), encrypted_notes))
+                (session['user_id'], name, username, encrypt_data(password), encrypted_notes))
 
         conn.commit()
         conn.close()
@@ -96,6 +110,11 @@ def add_password():
 
 @main.route('/retrieve_passwords')
 def retrieve_passwords():
+    '''
+    Retrieve passwords route is basically the password manager table which uses jquery datatables to sort entries.
+
+    Datatables only see's masked out passwords.
+    '''
     if 'user_id' not in session:
         # If the user is not logged in, redirect to the login page
         return redirect(url_for('main.home'))
@@ -107,10 +126,8 @@ def retrieve_passwords():
     conn = get_db_connection(secure_key)
     c = conn.cursor()
     
-    c.execute("SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?", 
-                  (session['user_id'],))
     # Retrieve all passwords for the logged-in user
-    # c.execute('SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?', (session['user_id'],))
+    c.execute('SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?', (session['user_id'],))
     passwords = c.fetchall()
 
     conn.close()
@@ -121,7 +138,6 @@ def retrieve_passwords():
             passwords[i][0],
             passwords[i][1],
             passwords[i][2],
-            # passwords[i][3]
             '*******',  # Mask the actual password; it's decrypted when needed
         )
 
@@ -129,6 +145,9 @@ def retrieve_passwords():
 
 @main.route('/delete_password/<int:password_id>')
 def delete_password(password_id):
+    '''
+    Delete individual passwords
+    '''
     if 'user_id' not in session:
         return redirect(url_for('main.home'))  # Not logged in, redirect to home
 
@@ -145,6 +164,9 @@ def delete_password(password_id):
 
 @main.route('/delete_multiple_passwords', methods=['POST'])
 def delete_multiple_passwords():
+    '''
+    Multi Select password entries for deletion
+    '''
     if 'user_id' not in session:
         return redirect(url_for('main.home'))  # Not logged in, redirect to home
 
@@ -169,6 +191,9 @@ def delete_multiple_passwords():
 
 @main.route('/edit_password/<int:password_id>', methods=['GET', 'POST'])
 def edit_password(password_id):
+    '''
+    Edit password. This doesn't use jquery, and will show passwords if unmasked, or you can generate new passwords.
+    '''
     if 'user_id' not in session:
         return redirect(url_for('main.home'))  # Not logged in, redirect to home
 
@@ -196,17 +221,17 @@ def edit_password(password_id):
             return "Error: Input data too long.", 400
 
         c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ?, notes = ? WHERE id = ? AND user_id = ?', 
-                  (name, username, encrypt_password(password), encrypted_notes, password_id, session['user_id']))
+                  (name, username, encrypt_data(password), encrypted_notes, password_id, session['user_id']))
         conn.commit()
         conn.close()
         return redirect(url_for('main.retrieve_passwords'))
 
     # For a GET request, retrieve the current password details for the form
     c.execute('SELECT name, username, encrypted_password, notes FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
-    # c.execute('SELECT id, name, username FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
     password_data = c.fetchone()
     conn.close()
-    # print(password_data)
+
+    # Decrypt password and render password entry info
     if password_data:
         decrypted_password = current_app.config['CIPHER_SUITE'].decrypt(password_data[2]).decode()
         decrypted_notes = decrypt_data(password_data[3])
@@ -217,6 +242,9 @@ def edit_password(password_id):
     
 @main.route('/decrypt_password/<int:password_id>', methods=['GET'])
 def decrypt_password(password_id):
+    '''
+    Decrypt the passwords from database
+    '''
     if 'user_id' not in session:
         return redirect(url_for('main.home'))  # Not logged in, redirect to home
     
@@ -235,13 +263,16 @@ def decrypt_password(password_id):
 
     if encrypted_password:
         # Decrypt the password
-        decrypted_password = current_app.config['CIPHER_SUITE'].decrypt(encrypted_password[0]).decode()
+        decrypted_password = decrypt_password(encrypted_password[0])
         return decrypted_password  # Send the decrypted password back
     else:
         return 'Password not found or access denied', 403  # Or handle as appropriate
     
 @main.route('/backup')
 def backup():
+    '''
+    Downloads a copy of the database locally, using data and time for name
+    '''
     # Retrieve the secure passphrase
     secure_key = get_secure_key()
     
@@ -252,7 +283,7 @@ def backup():
     conn.commit()
     conn.close()
 
-    file_path = Path(db_path)  # Ensure this path is correct and accessible
-    attachment_filename = f'backup_jonnys_den_{datetime.now().isoformat(sep="_",timespec="minutes")}.db'
+    file_path = Path(current_app.config['DB_PATH'])  # Ensure this path is correct and accessible
+    attachment_filename = f'backup_password_db_{datetime.now().isoformat(sep="_",timespec="minutes")}.db'
 
     return send_file(file_path, as_attachment=True, download_name=attachment_filename)
