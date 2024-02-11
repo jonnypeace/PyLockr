@@ -16,7 +16,13 @@ function copyToClipboard(passwordId) {
             document.body.removeChild(textarea);
 
             // Show a message to the user
-            alert('Password copied to clipboard!');
+            showToast(); // Call showToast() to display the notification
         })
         .catch(error => console.error('Error:', error));
+}
+
+function showToast() {
+    var toast = document.getElementById("toast");
+    toast.style.display = "block";
+    setTimeout(function() { toast.style.display = "none"; }, 3000); // Hide after 3 seconds
 }

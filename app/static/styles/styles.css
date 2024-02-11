@@ -253,3 +253,14 @@ input[type='checkbox'] {
     margin-bottom: 5px; /* Spacing between the label and the textarea */
 }
 
+.toast {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 45%;
+    background-color: black;
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    z-index: 1000;
+}
