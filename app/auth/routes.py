@@ -27,13 +27,12 @@ def login():
     secure_key = get_secure_key()
     
     # Connect to the encrypted database (SQLCipher) using the secure key
-    conn = get_db_connection(secure_key)
-    c = conn.cursor()
+    with get_db_connection(secure_key) as conn:
+        c = conn.cursor()
     
-    # Fetch the user by username
-    c.execute('SELECT * FROM users WHERE username = ?', (username,))
-    user = c.fetchone()
-    conn.close()
+        # Fetch the user by username
+        c.execute('SELECT * FROM users WHERE username = ?', (username,))
+        user = c.fetchone()
 
     if user and check_password_hash(user[2], password):
         # User authenticated successfully
@@ -66,28 +65,24 @@ def change_user_password():
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
         username = session['username']
-        
         # Connect to the encrypted database (SQLCipher) using the secure key
-        conn = get_db_connection(secure_key)
-        c = conn.cursor()
-
-        # Insert new user into the users table
-        c.execute('SELECT * FROM users WHERE username = ?', (username,))
-        user = c.fetchone()
-        if user and check_password_hash(user[2], current_password):
-            # Check if new password and confirmation match
-            if new_password == confirm_new_password:
-                # Update password
-                new_password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
-                c.execute('UPDATE users SET password_hash = ? WHERE username = ?', (new_password_hash, username))
-                conn.commit()
-                flash('Password successfully updated.', 'success')
+        with get_db_connection(secure_key) as conn:
+            c = conn.cursor()
+            # Insert new user into the users table
+            c.execute('SELECT * FROM users WHERE username = ?', (username,))
+            user = c.fetchone()
+            if user and check_password_hash(user[2], current_password):
+                # Check if new password and confirmation match
+                if new_password == confirm_new_password:
+                    # Update password
+                    new_password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+                    c.execute('UPDATE users SET password_hash = ? WHERE username = ?', (new_password_hash, username))
+                    conn.commit()
+                    flash('Password successfully updated.', 'success')
+                else:
+                    flash('New password and confirmation do not match.', 'error')
             else:
-                flash('New password and confirmation do not match.', 'error')
-        else:
-            flash('Current password is incorrect.', 'error')
-        
-        conn.close()
+                flash('Current password is incorrect.', 'error')
         return redirect(url_for('main.dashboard'))
 
     return render_template('change_user_password.html')
@@ -124,14 +119,11 @@ def signup():
         secure_key = get_secure_key()
         
         # Connect to the encrypted database (SQLCipher) using the secure key
-        conn = get_db_connection(secure_key)
-        c = conn.cursor()
-
-        # Insert new user into the users table
-        c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, hashed_password))
-
-        conn.commit()
-        conn.close()
+        with get_db_connection(secure_key) as conn:
+            c = conn.cursor()
+            # Insert new user into the users table
+            c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, hashed_password))
+            conn.commit()
 
         return redirect(url_for('main.home'))  # Redirect to the login page after successful registration
 

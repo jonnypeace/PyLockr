@@ -6,24 +6,58 @@ from flask import current_app
 from app.utils.security import *
 from app.utils.db_utils import *
 from html_sanitizer import Sanitizer
-import secrets
-import string
+import secrets, string, logging
+from contextlib import contextmanager
 
+@contextmanager
 def get_db_connection(passphrase):
     '''
     get_db_connection
     -----------------
 
     passphrase: str
-        for the database
+        for the database, and taken from environment variable
     
-    Returns:
-        Connection to database
+    Creates and manages a database connection encrypted with SQLCipher,
+    using the provided passphrase.
+
+    :param passphrase: The passphrase used for the SQLCipher encryption.
+    :return: Yields a connection to the encrypted SQLite database.
     '''
-    conn = sqlite.connect(str(current_app.config['DB_PATH']))
-    cursor = conn.cursor()
-    cursor.execute(f"PRAGMA key = '{passphrase}'")
-    return conn
+
+    conn = None
+    try:
+        conn = sqlite.connect(str(current_app.config['DB_PATH']))
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA key = '{passphrase}'")
+        yield conn
+    except sqlite.DatabaseError as e:
+        logging.error(f"Database error: {e}")
+        # Handle database-specific errors, e.g., incorrect passphrase, corrupted database
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected error when working with the database: {e}")
+        # Handle any other unexpected errors
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+# def get_db_connection(passphrase):
+#     '''
+#     get_db_connection
+#     -----------------
+
+#     passphrase: str
+#         for the database
+    
+#     Returns:
+#         Connection to database
+#     '''
+#     conn = sqlite.connect(str(current_app.config['DB_PATH']))
+#     cursor = conn.cursor()
+#     cursor.execute(f"PRAGMA key = '{passphrase}'")
+#     return conn
 
 def setup_db():
     '''

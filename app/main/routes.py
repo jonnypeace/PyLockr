@@ -45,11 +45,10 @@ def dashboard():
     secure_key = get_secure_key()
     
     # Connect to the encrypted database (SQLCipher) using the secure key
-    conn = get_db_connection(secure_key)
-    c = conn.cursor()
-    c.execute('SELECT MAX(backup_date) FROM backup_history')
-    last_backup = c.fetchone()[0]
-    conn.close()
+    with get_db_connection(secure_key) as conn:
+        c = conn.cursor()
+        c.execute('SELECT MAX(backup_date) FROM backup_history')
+        last_backup = c.fetchone()[0]
 
     # Check if the last backup was more than a month ago
     reminder_needed = False
@@ -90,17 +89,16 @@ def add_password():
         encrypted_notes = encrypt_data(sanitizer.sanitize(request.form['notes']))
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
-        
+    
         # Connect to the encrypted database (SQLCipher) using the secure key
-        conn = get_db_connection(secure_key)
-        c = conn.cursor()
+        with get_db_connection(secure_key) as conn:
+            c = conn.cursor()
         
-        # Insert new password into the passwords table
-        c.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, notes) VALUES (?, ?, ?, ?, ?)', 
-                (session['user_id'], name, username, encrypt_data(password), encrypted_notes))
+            # Insert new password into the passwords table
+            c.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, notes) VALUES (?, ?, ?, ?, ?)', 
+                    (session['user_id'], name, username, encrypt_data(password), encrypted_notes))
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         flash('Password added successfully!', 'success')
 
         return redirect(url_for('main.dashboard'))  # Redirect back to the dashboard
@@ -123,25 +121,23 @@ def retrieve_passwords():
     secure_key = get_secure_key()
     
     # Connect to the encrypted database (SQLCipher) using the secure key
-    conn = get_db_connection(secure_key)
-    c = conn.cursor()
+    with get_db_connection(secure_key) as conn:
+        c = conn.cursor()
     
-    # Retrieve all passwords for the logged-in user
-    c.execute('SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?', (session['user_id'],))
-    passwords = c.fetchall()
+        # Retrieve all data from vault for the logged-in user
+        c.execute('SELECT id, name, username, encrypted_password FROM passwords WHERE user_id = ?', (session['user_id'],))
+        vault_data = c.fetchall()
 
-    conn.close()
-
-    # Decrypt passwords just-in-time for display
-    for i in range(len(passwords)):
-        passwords[i] = (
-            passwords[i][0],
-            passwords[i][1],
-            passwords[i][2],
+    # Decrypted vault_data for display
+    for i in range(len(vault_data)):
+        vault_data[i] = (
+            vault_data[i][0],
+            vault_data[i][1],
+            vault_data[i][2],
             '*******',  # Mask the actual password; it's decrypted when needed
         )
 
-    return render_template('retrieve_passwords.html', passwords=passwords)
+    return render_template('retrieve_passwords.html', passwords=vault_data)
 
 @main.route('/delete_password/<int:password_id>')
 def delete_password(password_id):
@@ -152,13 +148,12 @@ def delete_password(password_id):
         return redirect(url_for('main.home'))  # Not logged in, redirect to home
 
     secure_key = get_secure_key()
-    conn = get_db_connection(secure_key)
-    c = conn.cursor()
-
-    # Delete the password entry
-    c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
-    conn.commit()
-    conn.close()
+    # Connect to the encrypted database (SQLCipher) using the secure key
+    with get_db_connection(secure_key) as conn:
+        c = conn.cursor()
+        # Delete the password entry
+        c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+        conn.commit()
 
     return redirect(url_for('main.retrieve_passwords'))
 
@@ -175,15 +170,15 @@ def delete_multiple_passwords():
 
     if selected_passwords:
         secure_key = get_secure_key()
-        conn = get_db_connection(secure_key)
-        c = conn.cursor()
+        # Connect to the encrypted database (SQLCipher) using the secure key
+        with get_db_connection(secure_key) as conn:
+            c = conn.cursor()
 
-        # Delete each selected password
-        for password_id in selected_passwords:
-            c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
-        
-        conn.commit()
-        conn.close()
+            # Delete each selected password
+            for password_id in selected_passwords:
+                c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+            
+            conn.commit()
 
         flash(f'Deleted {len(selected_passwords)} passwords.', 'success')
     
@@ -198,38 +193,36 @@ def edit_password(password_id):
         return redirect(url_for('main.home'))  # Not logged in, redirect to home
 
     secure_key = get_secure_key()
-    conn = get_db_connection(secure_key)
-    c = conn.cursor()
+    # Connect to the encrypted database (SQLCipher) using the secure key
+    with get_db_connection(secure_key) as conn:
+        c = conn.cursor()
+        if request.method == 'POST':
+            # Update the password entry
+            name = sanitizer.sanitize(request.form['name'])
+            username = sanitizer.sanitize(request.form['username'])
+            password = sanitizer.sanitize(request.form['password'])
 
-    if request.method == 'POST':
-        # Update the password entry
-        name = sanitizer.sanitize(request.form['name'])
-        username = sanitizer.sanitize(request.form['username'])
-        password = sanitizer.sanitize(request.form['password'])
+            # Encrypt Notes. Can use the password encryption because it does the same thing
+            encrypted_notes = encrypt_data(sanitizer.sanitize(request.form['notes']))
 
-        # Encrypt Notes. Can use the password encryption because it does the same thing
-        encrypted_notes = encrypt_data(sanitizer.sanitize(request.form['notes']))
+            # Define maximum lengths
+            max_length_name = 50
+            max_length_username = 50
+            max_length_notes = 4096
 
-        # Define maximum lengths
-        max_length_name = 50
-        max_length_username = 50
-        max_length_notes = 4096
+            # Validate lengths
+            if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes:
+                # Handle error: return an error message or redirect
+                return "Error: Input data too long.", 400
 
-        # Validate lengths
-        if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes:
-            # Handle error: return an error message or redirect
-            return "Error: Input data too long.", 400
+            c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ?, notes = ? WHERE id = ? AND user_id = ?', 
+                    (name, username, encrypt_data(password), encrypted_notes, password_id, session['user_id']))
+            conn.commit()
+            return redirect(url_for('main.retrieve_passwords'))
 
-        c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ?, notes = ? WHERE id = ? AND user_id = ?', 
-                  (name, username, encrypt_data(password), encrypted_notes, password_id, session['user_id']))
-        conn.commit()
-        conn.close()
-        return redirect(url_for('main.retrieve_passwords'))
-
-    # For a GET request, retrieve the current password details for the form
-    c.execute('SELECT name, username, encrypted_password, notes FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
-    password_data = c.fetchone()
-    conn.close()
+        # For a GET request, retrieve the current password details for the form
+        c.execute('SELECT name, username, encrypted_password, notes FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+        password_data = c.fetchone()
 
     # Decrypt password and render password entry info
     if password_data:
@@ -250,16 +243,13 @@ def decrypt_password(password_id):
     
     # Retrieve the secure passphrase
     secure_key = get_secure_key()
-    
     # Connect to the encrypted database (SQLCipher) using the secure key
-    conn = get_db_connection(secure_key)
-    c = conn.cursor()
+    with get_db_connection(secure_key) as conn:
+        c = conn.cursor()
     
-    # Fetch the encrypted password for the given password ID
-    c.execute('SELECT encrypted_password FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
-    encrypted_password = c.fetchone()
-
-    conn.close()
+        # Fetch the encrypted password for the given password ID
+        c.execute('SELECT encrypted_password FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
+        encrypted_password = c.fetchone()
 
     if encrypted_password:
         # Decrypt the password
@@ -275,13 +265,11 @@ def backup():
     '''
     # Retrieve the secure passphrase
     secure_key = get_secure_key()
-    
     # Connect to the encrypted database (SQLCipher) using the secure key
-    conn = get_db_connection(secure_key)
-    c = conn.cursor()
-    c.execute('INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)')
-    conn.commit()
-    conn.close()
+    with get_db_connection(secure_key) as conn:
+        c = conn.cursor()
+        c.execute('INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)')
+        conn.commit()
 
     file_path = Path(current_app.config['DB_PATH'])  # Ensure this path is correct and accessible
     attachment_filename = f'backup_password_db_{datetime.now().isoformat(sep="_",timespec="minutes")}.db'
