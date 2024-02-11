@@ -6,49 +6,53 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from app.utils.security import *
 from app.utils.db_utils import *
+from flask.views import MethodView
 
-@auth.route('/logout', methods=['POST'])
-def logout():
-    '''
-    Logs out and clears the session and redirects to homepage.
-    '''
-    session.clear()
-    return redirect(url_for('main.home'))
+class Logout(MethodView):
+    def post(self):
+        '''
+        Logs out and clears the session and redirects to homepage.
+        '''
+        session.clear()
+        return redirect(url_for('main.home'))
+auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
-@auth.route('/login', methods=['POST'])
-def login():
-    '''
-    Logs into website and starts a session.
-    '''
-    username = request.form['username']
-    password = request.form['password']
-    
-    # Retrieve the secure passphrase
-    secure_key = get_secure_key()
-    
-    # Connect to the encrypted database (SQLCipher) using the secure key
-    with get_db_connection(secure_key) as conn:
-        c = conn.cursor()
-    
-        # Fetch the user by username
-        c.execute('SELECT * FROM users WHERE username = ?', (username,))
-        user = c.fetchone()
+class Login(MethodView):
+    def post(self):
+        '''
+        Logs into website and starts a session.
+        '''
+        username = request.form['username']
+        password = request.form['password']
+        
+        # Retrieve the secure passphrase
+        secure_key = get_secure_key()
+        
+        # Connect to the encrypted database (SQLCipher) using the secure key
+        with get_db_connection(secure_key) as conn:
+            c = conn.cursor()
+        
+            # Fetch the user by username
+            c.execute('SELECT * FROM users WHERE username = ?', (username,))
+            user = c.fetchone()
 
-    if user and check_password_hash(user[2], password):
-        # User authenticated successfully
-        session['user_id'] = user[0] 
-        session['username'] = user[1]  # Log the user in by setting the session
-        return redirect(url_for('main.dashboard'))  # Redirect to the dashboard page after successful login
-    else:
-        return 'Login failed. Check your login details.'
-    
-@auth.route('/change_user_password', methods=['GET', 'POST'])
-def change_user_password():
+        if user and check_password_hash(user[2], password):
+            # User authenticated successfully
+            session['user_id'] = user[0] 
+            session['username'] = user[1]  # Log the user in by setting the session
+            return redirect(url_for('main.dashboard'))  # Redirect to the dashboard page after successful login
+        else:
+            return 'Login failed. Check your login details.'
+auth.add_url_rule('/login', view_func=Login.as_view('login'))
+
+class ChangeUserPass(MethodView):
     '''
     Changes user password for loging into website, and checks for upper/lowercase special character and number, and password length.
     Default minimum password length is 12.
     '''
-    if request.method == 'POST':
+    def get(self):
+        return render_template('change_user_password.html')
+    def post(self):
         current_password = request.form['current_password']
         new_password = request.form['new_password']
         confirm_new_password = request.form['confirm_new_password']
@@ -84,15 +88,12 @@ def change_user_password():
             else:
                 flash('Current password is incorrect.', 'error')
         return redirect(url_for('main.dashboard'))
+auth.add_url_rule('/change_user_password', view_func=ChangeUserPass.as_view('change_user_password'))
 
-    return render_template('change_user_password.html')
-
-@auth.route('/signup', methods=['GET', 'POST'])
-def signup():
-    '''
-    Website sign up
-    '''
-    if request.method == 'POST':
+class SignUP(MethodView):
+    def get(self):
+        return render_template('signup.html')  # Render the sign-up page if method is GET
+    def post(self):
         username = request.form['username']
         password = request.form['password']
 
@@ -126,5 +127,4 @@ def signup():
             conn.commit()
 
         return redirect(url_for('main.home'))  # Redirect to the login page after successful registration
-
-    return render_template('signup.html')  # Render the sign-up page if method is GET
+auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))
