@@ -20,7 +20,8 @@ def create_app():
     print(f"Checking for DB at: {db_path.absolute()}")
     if not db_path.exists():
         print("DB not found, setting up the database...")
-        setup_db()
+        with app.app_context():
+            setup_db()  # Now has access to `current_app`
     else:
         print("DB found. Not initializing.")
     return app
