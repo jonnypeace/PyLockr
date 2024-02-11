@@ -141,7 +141,7 @@ button:hover {
 .header {
     background-color: #121212;
     position: fixed;
-    top: 10px;
+    top: 3px;
     right: 10px;
     z-index: 1000;
     text-align: right;
