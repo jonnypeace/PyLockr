@@ -9,10 +9,15 @@ class Config:
     SECRET_KEY = os.environ.get('APP_SECRET_KEY')
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=int(os.environ.get('SESSION_TIMEOUT', 30)))
     DB_PATH = os.path.join(os.getcwd(), 'database/users.db')
-    KEY = os.environ.get('FERNET_KEY')
     FERNET_KEY = os.environ.get('FERNET_KEY')
-    
+
     if FERNET_KEY:
+        # Theres a bug in python 3.11/python-dotenv/flask loading .env files with base64 encoding.
+        # The bug strips the padding from the end of the string.
+        # Calculate required padding based on the current length
+        padding_needed = 4 - len(FERNET_KEY) % 4
+        if padding_needed != 4:  # Only add padding if it's less than 4
+            FERNET_KEY += "=" * padding_needed
         CIPHER_SUITE = Fernet(FERNET_KEY)
     else:
         raise ValueError("No FERNET_KEY found in environment variables.")
