@@ -6,6 +6,8 @@ from flask import current_app
 from app.utils.security import *
 from app.utils.db_utils import *
 from html_sanitizer import Sanitizer
+import secrets
+import string
 
 def get_db_connection(passphrase):
     '''
@@ -85,3 +87,13 @@ def setup_db():
 
 #         conn.commit()
 #         conn.close()
+    
+# def generate_password(length=12):
+#     """Generate a secure random password."""
+#     alphabet = string.ascii_letters + string.digits + string.punctuation
+#     password = ''.join(secrets.choice(alphabet) for i in range(length))
+#     return password
+
+# # Example usage:
+# password = generate_password(16)  # Generate a 16-character password
+# print(password)

@@ -1,8 +1,26 @@
 #!/usr/bin/env python3
 
 from cryptography.fernet import Fernet
-import secrets
+import secrets, string
 import base64
+
+def generate_password(length=12):
+    """Generate a secure random password."""
+    alphabet = string.ascii_letters + string.digits + string.punctuation
+    password = ''.join(secrets.choice(alphabet) for i in range(length))
+    return password
+
+# Example usage:
+password = generate_password(16)  # Generate a 16-character password
+print(password)
+
+def generate_secret_key(length=24):
+    return secrets.token_hex(length)
+
+# Example usage:
+flask_secret_key = generate_secret_key()
+print(flask_secret_key)
+
 
 def generate_keys():
     # Generate a new Fernet key
