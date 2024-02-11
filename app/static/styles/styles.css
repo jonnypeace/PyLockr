@@ -139,56 +139,34 @@ button:hover {
 }
 
 .header {
-    background-color: #f4f4f4;
+    background-color: #121212;
     position: fixed;
     top: 10px;
-    right: 50px;
+    right: 10px;
     z-index: 1000;
-    text-align: right;.header {
-
-        background-color: #f4f4f4;
-        padding: 10px;
-        text-align: right;
-    }
-    
-    .header form {
-        display: inline;
-    }
-    
-    .header button {
-        margin-left: 50px;
-        padding: 5px 10px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-    }
-    
-    .header button:hover {
-        background-color: #45a049;
-    }
-    
+    text-align: right;
+    border-radius: 6px;
 }
 
 .header form {
-    display: inline;
+    border: none; /* Keep the form without a border */
+    box-shadow: none; /* Remove the box-shadow */
+    background: #121212; /* Blend it in */
+    padding: 0px; /* Minimal padding around the button for a tighter look, adjust as needed */
+    display: flex; /* Ensure the form does not take full width */
+    border-radius: 4px;
 }
 
 .header button {
-    padding: 5px 10px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
+    padding: 6px 15px;
+    margin-left: 0;
 }
+
 
 .header button:hover {
     background-color: #45a049;
 }
+
 
 .flash {
     padding: 10px;
