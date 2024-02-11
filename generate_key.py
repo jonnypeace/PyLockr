@@ -2,43 +2,34 @@
 
 from cryptography.fernet import Fernet
 import secrets, string
-import base64
 
-def generate_password(length=12):
+def generate_password(length: int = 12, special_chars: str ='#-!£$%^&_:'):
     """Generate a secure random password."""
-    alphabet = string.ascii_letters + string.digits + string.punctuation
+    alphabet = string.ascii_letters + string.digits + special_chars
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
-
-# Example usage:
-password = generate_password(16)  # Generate a 16-character password
-print(password)
 
 def generate_secret_key(length=24):
     return secrets.token_hex(length)
 
-# Example usage:
-flask_secret_key = generate_secret_key()
-print(flask_secret_key)
-
-
 def generate_keys():
+    # Example usage:
+    flask_secret_key = generate_secret_key()
     # Generate a new Fernet key
     key = Fernet.generate_key()
     # Decode the key to convert from bytes to string
-    fer_decoded_key = key.decode()
-    # Generate a 32-byte (256-bit) random key
-    random_key = secrets.token_bytes(32)
-    # Optionally, encode the key in a readable format such as hex or base64
-    encoded_key = base64.b64encode(random_key).decode('utf-8')
+    fernet_decoded_key = key.decode()
+    sqlcipher_key = generate_password(32)
     print(f'''
           If adding to your .bashrc file:
-          export SQLCIPHER_KEY='{encoded_key}'
-          export FERNET_KEY='{fer_decoded_key}'
+          export SECRET_KEY='{flask_secret_key}'
+          export SQLCIPHER_KEY='{sqlcipher_key}'
+          export FERNET_KEY='{fernet_decoded_key}'
           
           or .env file:
-          SQLCIPHER_KEY='{encoded_key}'
-          FERNET_KEY='{fer_decoded_key}'
+          SECRET_KEY='{flask_secret_key}
+          SQLCIPHER_KEY='{sqlcipher_key}'
+          FERNET_KEY='{fernet_decoded_key}'
             ''')
 
 if __name__ == "__main__":
