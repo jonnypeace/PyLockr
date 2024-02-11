@@ -263,7 +263,7 @@ def decrypt_password(password_id):
 
     if encrypted_password:
         # Decrypt the password
-        decrypted_password = decrypt_password(encrypted_password[0])
+        decrypted_password = decrypt_data(encrypted_password[0])
         return decrypted_password  # Send the decrypted password back
     else:
         return 'Password not found or access denied', 403  # Or handle as appropriate
