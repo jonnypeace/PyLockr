@@ -8,6 +8,7 @@ flask = "*"
 pysqlcipher3 = "*"
 cryptography = "*"
 html-sanitizer = "*"
+virtualenv = "*"
 python-dotenv = "*"
 
 [dev-packages]
