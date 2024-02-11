@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 
 from cryptography.fernet import Fernet
+import secrets
+import base64
 
-def generate_fernet_key():
+def generate_keys():
     # Generate a new Fernet key
     key = Fernet.generate_key()
-    
     # Decode the key to convert from bytes to string
-    decoded_key = key.decode()
-    
-    # Print the key and instructions for the user
-    print("Generated Fernet Key:")
-    print(decoded_key)
-    print("\nPlease add the following line to your .bashrc file:")
-    print(f"export FERNET_KEY='{decoded_key}'")
-    print("\nAfter adding the key, remember to run 'source ~/.bashrc' or restart your terminal.")
+    fer_decoded_key = key.decode()
+    # Generate a 32-byte (256-bit) random key
+    random_key = secrets.token_bytes(32)
+    # Optionally, encode the key in a readable format such as hex or base64
+    encoded_key = base64.b64encode(random_key).decode('utf-8')
+    print(f'''
+          If adding to your .bashrc file:
+          export SQLCIPHER_KEY='{encoded_key}'
+          export FERNET_KEY='{fer_decoded_key}'
+          
+          or .env file:
+          SQLCIPHER_KEY='{encoded_key}'
+          FERNET_KEY='{fer_decoded_key}'
+            ''')
 
 if __name__ == "__main__":
-    generate_fernet_key()
+    generate_keys()
