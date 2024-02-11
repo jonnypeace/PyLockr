@@ -43,22 +43,6 @@ def get_db_connection(passphrase):
         if conn:
             conn.close()
 
-# def get_db_connection(passphrase):
-#     '''
-#     get_db_connection
-#     -----------------
-
-#     passphrase: str
-#         for the database
-    
-#     Returns:
-#         Connection to database
-#     '''
-#     conn = sqlite.connect(str(current_app.config['DB_PATH']))
-#     cursor = conn.cursor()
-#     cursor.execute(f"PRAGMA key = '{passphrase}'")
-#     return conn
-
 def setup_db():
     '''
     Sets up database table for user authentication. Passwords here are hashed.
