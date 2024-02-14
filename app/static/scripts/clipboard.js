@@ -3,22 +3,37 @@ function copyToClipboard(passwordId) {
     fetch('/decrypt_password/' + passwordId)
         .then(response => response.text())
         .then(text => {
-            // Create a temporary textarea element to hold the password
-            var textarea = document.createElement('textarea');
-            textarea.value = text; // The decrypted password
-            document.body.appendChild(textarea);
-
-            // Select the text and copy it to the clipboard
-            textarea.select();
-            document.execCommand('copy');
-
-            // Remove the temporary textarea
-            document.body.removeChild(textarea);
-
-            // Show a message to the user
-            showToast(); // Call showToast() to display the notification
+            // Using the Clipboard API
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(); // Show success message
+                }).catch(err => {
+                    console.error('Failed to copy with Clipboard API: ', err);
+                    fallbackCopyTextToClipboard(text); // Fallback method
+                });
+            } else {
+                // Fallback for browsers without Clipboard API support
+                fallbackCopyTextToClipboard(text);
+            }
         })
         .catch(error => console.error('Error:', error));
+}
+
+// Fallback method using execCommand for older browsers
+function fallbackCopyTextToClipboard(text) {
+    var textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        var successful = document.execCommand('copy');
+        var msg = successful ? 'successful' : 'unsuccessful';
+        console.log('Fallback: Copying text command was ' + msg);
+        showToast(); // Assuming showToast() shows a generic success message
+    } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+    }
+    document.body.removeChild(textarea);
 }
 
 function showToast() {
