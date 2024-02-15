@@ -6,9 +6,9 @@ from pathlib import Path
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView
+from werkzeug.utils import secure_filename
 
-
-sanitizer = Sanitizer()  # default configuration
+sanitizer = Sanitizer()  # Used for name and username
 
 class BaseAuthenticatedView(MethodView):
     '''
@@ -18,6 +18,41 @@ class BaseAuthenticatedView(MethodView):
         if 'user_id' not in session:
             return redirect(url_for('main.home'))
         return super(BaseAuthenticatedView, self).dispatch_request(*args, **kwargs)
+
+class UploadCSV(BaseAuthenticatedView):
+    '''
+    UploadCSV
+    ---------
+
+    Used to update the database with a CSV file. initial support will be for Chrome, Brave, and Vaultwarden
+    '''
+    def get(self):
+        # Redirect to dashboard or show the form again
+        flash('Please select a file to upload', 'error')
+        return redirect(url_for('main.dashboard'))
+    def post(self):
+        file = request.files.get('csvFile')
+        if file and file.filename == '':
+            flash('No file selected', 'error')
+            return redirect(request.url)
+        elif file and not file.filename.endswith('.csv'):
+            flash('Invalid file type, please upload a CSV file.', 'error')
+            return redirect(request.url)
+        elif not file:
+            # Handle unexpected case where 'csvFile' is somehow missing
+            flash('Unexpected error with file upload.', 'error')
+            return redirect(request.url)
+        else:
+            filename = secure_filename(file.filename)
+            # Save the file to a secure location before processing
+            # file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+            file_path = '/home/jonny/dummy.csv'
+            file.save(file_path)
+            flash('*** File successfully uploaded ***', 'success')
+            # You can now call your CSV parsing function here and pass `file_path` to it
+            return redirect(url_for('main.dashboard'))
+
+main.add_url_rule('/upload_csv', view_func=UploadCSV.as_view('upload_csv'))
 
 class Home(MethodView):
     def get(self):
@@ -98,7 +133,7 @@ class AddPassword(BaseAuthenticatedView):
 
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
-    
+        print(session['user_id'])
         # Connect to the encrypted database (SQLCipher) using the secure key
         with get_db_connection(secure_key) as conn:
             c = conn.cursor()

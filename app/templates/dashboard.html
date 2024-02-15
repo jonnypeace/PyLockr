@@ -21,14 +21,20 @@
             <p style="color: red;">It has been over a month since your last backup. Please consider backing up your database.</p>
               {% endif %}
             <p style="color:aquamarine;">Last Backup: {{ last_backup if last_backup else 'Never' }}</p>
-          <br><br><br><br>
-        <div class="actions">
+          <br><br>
+        <div style="text-align: center;" class="actions">
             <!-- Link to Add Password Page -->
             <a href="{{ url_for('main.add_password') }}"><button>Add Password</button></a>
             <!-- Link to Retrieve Passwords -->
             <a href="{{ url_for('main.retrieve_passwords') }}"><button>Retrieve Passwords</button></a>
             <!-- Link to Retrieve Passwords -->
             <a href="{{ url_for('auth.change_user_password') }}"><button>Change User Password</button></a>
+          <br><br>
+            <form action="{{ url_for('main.upload_csv') }}" method="POST" enctype="multipart/form-data">
+                <label for="csvFile" class="custom-file-upload">Upload CSV file into Database</label>
+                <input type="file" id="csvFile" name="csvFile" accept=".csv" style="display: none;" >
+                <button type="submit">Upload</button>
+            </form>
         </div>
     </div>
 </body>
