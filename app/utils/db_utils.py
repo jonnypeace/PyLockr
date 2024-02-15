@@ -60,15 +60,20 @@ def setup_db():
     
     cursor.execute(f"PRAGMA key = '{passphrase}'")
 
+    # for authenticating users
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users
-        ([id] INTEGER PRIMARY KEY, [username] TEXT, [password_hash] TEXT)
+        ([id] INTEGER PRIMARY KEY AUTOINCREMENT, [username] TEXT UNIQUE NOT NULL, [password_hash] TEXT NOT NULL)
     ''')
+
+    # for password manager
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS passwords
-        ([id] INTEGER PRIMARY KEY, [user_id] INTEGER, [name] TEXT, [username] TEXT, [encrypted_password] TEXT, [notes] TEXT,
+        ([id] INTEGER PRIMARY KEY AUTOINCREMENT, [user_id] INTEGER NOT NULL, [name] TEXT, [username] TEXT, [encrypted_password] TEXT, [notes] TEXT,
         FOREIGN KEY(user_id) REFERENCES users(id))
     ''')
+
+    # for tracking last time backups were made
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS backup_history (
             id INTEGER PRIMARY KEY,
