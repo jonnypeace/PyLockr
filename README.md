@@ -36,3 +36,37 @@ FERNET_KEY='TcUTkZN-fPkS1OqVYyG8BjnsIaQWIasDSUwZbgmR5N4='
 
 Run the generate_key.py file, which will provide you with a Fernet Key and SQLCIPHER Key
 
+## Docker Builds
+
+First of all, you'll need docker, docker-compose...
+
+```bash
+sudo pacman -S docker-compose docker
+```
+
+Check the status, and enable docker if needed..
+
+```bash
+sudo systemctl status docker
+sudo systemctl enable --now docker
+sudo systemctl status docker
+```
+
+Add user to docker group
+```bash
+sudo usermod -aG docker jonny
+```
+
+At this point you'll need to log out and back in for the user group to work.
+
+You should be able to build from the dockerfile, and docker-compose file provided.
+
+```bash
+docker-compose build --no-cache
+```
+
+You can add a -d to the end of this command to detach, but for debugging I leave myself attached
+
+```bash
+docker-compose up
+```
