@@ -284,3 +284,9 @@ input[type='checkbox'] {
     background-color: #e0e0e0;
 }
 
+.container {
+    overflow-y: auto; /* Add vertical scroll if needed */
+    max-height: 90vh; /* Adjust based on header/footer */
+    padding: 20px;
+}
+
