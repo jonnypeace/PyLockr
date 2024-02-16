@@ -20,37 +20,56 @@ class BaseAuthenticatedView(MethodView):
         return super(BaseAuthenticatedView, self).dispatch_request(*args, **kwargs)
 
 class UploadCSV(BaseAuthenticatedView):
-    '''
-    UploadCSV
-    ---------
-
-    Used to update the database with a CSV file. initial support will be for Chrome, Brave, and Vaultwarden
-    '''
+    """
+    Class to handle CSV file uploads and update the database.
+    Supports CSV files from Chrome, Brave, and Vaultwarden initially.
+    """
     def get(self):
         # Redirect to dashboard or show the form again
         flash('Please select a file to upload', 'error')
         return redirect(url_for('main.dashboard'))
     def post(self):
         file = request.files.get('csvFile')
-        if file and file.filename == '':
+        if not file or file.filename == '':
             flash('No file selected', 'error')
             return redirect(request.url)
-        elif file and not file.filename.endswith('.csv'):
+        if not self.is_valid_file(file.filename):
             flash('Invalid file type, please upload a CSV file.', 'error')
             return redirect(request.url)
-        elif not file:
-            # Handle unexpected case where 'csvFile' is somehow missing
-            flash('Unexpected error with file upload.', 'error')
-            return redirect(request.url)
-        else:
-            filename = secure_filename(file.filename)
-            # Save the file to a secure location before processing
-            # file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-            file_path = '/home/jonny/dummy.csv'
-            file.save(file_path)
+
+        try:
+            self.process_file(file)
             flash('*** File successfully uploaded ***', 'success')
-            # You can now call your CSV parsing function here and pass `file_path` to it
-            return redirect(url_for('main.dashboard'))
+        except Exception as e:
+            # Log the error and provide a generic error message to the user
+            # Assuming a logging mechanism exists
+            print(f"Error processing file: {e}")  # Replace with your logging mechanism
+            flash('Error processing the file.', 'error')
+
+        return redirect(url_for('main.dashboard'))
+
+    @staticmethod
+    def is_valid_file(filename):
+        return filename.endswith('.csv')
+
+    def process_file(self, file):
+        import io, csv
+        file_stream = io.StringIO(file.read().decode('utf-8'))
+        csv_reader = csv.reader(file_stream)
+        secure_key = get_secure_key()
+
+        with get_db_connection(secure_key) as conn, file_stream:
+            c = conn.cursor()
+            for row in csv_reader:
+                self.insert_password_row(c, row)
+            conn.commit()
+
+    def insert_password_row(self, cursor, row):
+        name, username = sanitizer.sanitize(row[3]), sanitizer.sanitize(row[8])
+        encrypted_pass = encrypt_data(row[9])
+        encrypted_notes = encrypt_data(row[4])
+        cursor.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, notes) VALUES (?, ?, ?, ?, ?)',
+                       (session['user_id'], name, username, encrypted_pass, encrypted_notes))
 
 main.add_url_rule('/upload_csv', view_func=UploadCSV.as_view('upload_csv'))
 
@@ -133,7 +152,6 @@ class AddPassword(BaseAuthenticatedView):
 
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
-        print(session['user_id'])
         # Connect to the encrypted database (SQLCipher) using the secure key
         with get_db_connection(secure_key) as conn:
             c = conn.cursor()
