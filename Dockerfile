@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10
+FROM python:3.11
 
 # Install system dependencies required for pysqlcipher3
 RUN apt-get update && apt-get install -y \
