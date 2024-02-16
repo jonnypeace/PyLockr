@@ -1,3 +1,4 @@
+from os import name
 from . import main
 from app.utils.security import *
 from app.utils.db_utils import *
@@ -7,6 +8,7 @@ from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView
 from werkzeug.utils import secure_filename
+import re
 
 sanitizer = Sanitizer()  # Used for name and username
 
@@ -60,14 +62,41 @@ class UploadCSV(BaseAuthenticatedView):
 
         with get_db_connection(secure_key) as conn, file_stream:
             c = conn.cursor()
-            for row in csv_reader:
-                self.insert_password_row(c, row)
+            row_index_dict: dict = dict()
+            for num,row in enumerate(csv_reader):
+                if num == 0: # skip the header section of the CSV file
+                    row_index_dict = self.check_indexes(row)
+                    continue
+                self.insert_password_row(c, row, row_index_dict)
             conn.commit()
 
-    def insert_password_row(self, cursor, row):
-        name, username = sanitizer.sanitize(row[3]), sanitizer.sanitize(row[8])
-        encrypted_pass = encrypt_data(row[9])
-        encrypted_notes = encrypt_data(row[4])
+    @staticmethod
+    def check_indexes(row):
+        # Initialize the dictionary with default indices
+        row_dict = {'name': -1, 'username': -1, 'password': -1, 'notes': -1}
+        
+        # Compile regex patterns for matching headers
+        patterns = {
+            'name': re.compile(r'(?<!user\s)((account\s+)?\bname\b)', re.IGNORECASE),
+            'username': re.compile(r'user\s*name', re.IGNORECASE),
+            'password': re.compile(r'password', re.IGNORECASE),
+            'notes': re.compile(r'notes', re.IGNORECASE),
+        }
+        
+        # Iterate through each header to find matches
+        for num, item in enumerate(row):
+            for key, pattern in patterns.items():
+                if re.search(pattern, item):
+                    row_dict[key] = num
+                    break  # Stop checking other patterns if a match is found
+        
+        return row_dict
+
+    def insert_password_row(self, cursor, row, row_index_dict):
+        name = sanitizer.sanitize(row[row_index_dict.get('name')]) if row_index_dict.get('name') != -1 else ''
+        username = sanitizer.sanitize(row[row_index_dict.get('username')]) if row_index_dict.get('username') != -1 else ''
+        encrypted_pass = encrypt_data(row[row_index_dict.get('password')]) if row_index_dict.get('password') != -1 else encrypt_data('')
+        encrypted_notes = encrypt_data(row[row_index_dict.get('notes')]) if row_index_dict.get('notes') != -1 else encrypt_data('')
         cursor.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, notes) VALUES (?, ?, ?, ?, ?)',
                        (session['user_id'], name, username, encrypted_pass, encrypted_notes))
 
