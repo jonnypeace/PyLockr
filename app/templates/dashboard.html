@@ -16,7 +16,7 @@
             {% endfor %}
           {% endif %}
         {% endwith %}
-        <h1>Welcome to Jonny's Den Dashboard</h1>
+        <h1>The Password Den Dashboard</h1>
             <a style="color:rgb(255, 253, 127);" href="{{ url_for('main.backup') }}">Download Database Backup</a>
             {% if reminder_needed %}
             <p style="color: red;">It has been over a month since your last backup. Please consider backing up your database.</p>
