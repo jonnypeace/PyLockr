@@ -347,21 +347,73 @@ class DecryptPassword(BaseAuthenticatedView):
             return 'Password not found or access denied', 403  # Or handle as appropriate
     
 main.add_url_rule('/decrypt_password/<int:password_id>', view_func=DecryptPassword.as_view('decrypt_password'))
+
+class Backup(BaseAuthenticatedView):
+    methods = ['GET', 'POST']
+    def post(self):    
+        '''
+        Downloads a copy of the database locally, using data and time for name
+        '''
+
+        # Retrieve password from form submission
+        password = request.form.get('backupPassword')
+        if not password:
+            flash('Password is required for backup.', 'error')
+            return redirect(url_for('backup'))  # Adjust 'backup' to match your route's endpoint name
+
+        # Retrieve the secure passphrase
+        secure_key = get_secure_key()
+        # Connect to the encrypted database (SQLCipher) using the secure key
+        with get_db_connection(secure_key) as conn:
+            c = conn.cursor()
+            c = conn.cursor()
+            c.execute('SELECT name, username, encrypted_password, category, notes FROM passwords WHERE user_id = ?', (session['user_id'],))
+            password_data = c.fetchall()
+            c.execute('INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)')
+            conn.commit()
+
+        # Decrypt data and prepare for CSV
+        decrypted_data = []
+        for row in password_data:
+            name, username, encrypted_password, category, encrypted_notes = row
+            decrypted_password = current_app.config['CIPHER_SUITE'].decrypt(encrypted_password).decode()
+            decrypted_notes = current_app.config['CIPHER_SUITE'].decrypt(encrypted_notes).decode()
+            decrypted_data.append([name, username, decrypted_password, category, decrypted_notes])
+
+        import csv
+        import os
+
+        import py7zr
+        # Save the decrypted data to a CSV file
+        file_path = os.path.join(current_app.config.get('BACKUP_DIR', os.getcwd()), 'passwords.csv')
+        with open(file_path, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['name', 'username', 'password', 'category', 'notes'])
+            writer.writerows(decrypted_data)
+
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')  # Example: '2024-02-17_18-20'
+        # Define the path for the 7z archive
+        archive_path = os.path.join(current_app.config.get('BACKUP_DIR', os.getcwd()), f'backup_password_den_{timestamp}.7z') # Changed extension to .7z
+
+        # Create the 7z archive and add the CSV file
+        with py7zr.SevenZipFile(archive_path, mode='w', password=password) as archive:
+            archive.write(file_path, os.path.basename(file_path))
+
+        self.secure_delete(file_path)
+        try: 
+            return send_file(archive_path, as_attachment=True, download_name=os.path.basename(archive_path))
+        finally:
+            os.remove(archive_path)
     
-@main.route('/backup')
-def backup():
-    '''
-    Downloads a copy of the database locally, using data and time for name
-    '''
-    # Retrieve the secure passphrase
-    secure_key = get_secure_key()
-    # Connect to the encrypted database (SQLCipher) using the secure key
-    with get_db_connection(secure_key) as conn:
-        c = conn.cursor()
-        c.execute('INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)')
-        conn.commit()
+    @staticmethod
+    def secure_delete(file_path, passes=3):
+        """Securely delete a file using a specified number of overwrite passes."""
+        if os.path.exists(file_path):
+            with open(file_path, "ba+") as file:
+                length = file.tell()
+            for _ in range(passes):
+                with open(file_path, "br+") as file:
+                    file.write(os.urandom(length))
+            os.remove(file_path)
 
-    file_path = Path(current_app.config['DB_PATH'])  # Ensure this path is correct and accessible
-    attachment_filename = f'backup_password_db_{datetime.now().isoformat(sep="_",timespec="minutes")}.db'
-
-    return send_file(file_path, as_attachment=True, download_name=attachment_filename)
+main.add_url_rule('/backup', view_func=Backup.as_view('backup'))
