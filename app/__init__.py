@@ -16,6 +16,8 @@ def create_app():
 
     db_path = Path(app.config['DB_PATH']).parent
     db_path.mkdir(parents=True, exist_ok=True)
+    backup_path = Path(app.config['BACKUP_DIR'])
+    backup_path.mkdir(parents=True, exist_ok=True)
     db_path = Path(app.config['DB_PATH'])
     print(f"Checking for DB at: {db_path.absolute()}")
     if not db_path.exists():

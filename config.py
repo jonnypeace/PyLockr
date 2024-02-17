@@ -10,6 +10,7 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=int(os.environ.get('SESSION_TIMEOUT', 30)))
     DB_PATH = os.path.join(os.getcwd(), 'database/users.db')
     FERNET_KEY = os.environ.get('FERNET_KEY')
+    BACKUP_DIR = os.path.join(os.getcwd(), 'backup/')
 
     if FERNET_KEY:
         # Theres a bug in python 3.11/python-dotenv/flask loading .env files with base64 encoding.
