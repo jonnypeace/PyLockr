@@ -10,6 +10,8 @@ cryptography = "*"
 html-sanitizer = "*"
 virtualenv = "*"
 python-dotenv = "*"
+l = "*"
+py7zr = "*"
 
 [dev-packages]
 ipykernel = "*"
