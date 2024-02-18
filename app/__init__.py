@@ -5,7 +5,9 @@ from .main import main as main_blueprint
 from .auth import auth as auth_blueprint
 from config import Config
 from pathlib import Path
-from .utils.db_utils import setup_db
+from .utils.db_utils import setup_db, db_server_backup
+from apscheduler.schedulers.background import BackgroundScheduler
+import os
 
 def create_app():
     app = Flask(__name__)
@@ -26,4 +28,17 @@ def create_app():
             setup_db()  # Now has access to `current_app`
     else:
         print("DB found. Not initializing.")
+
+    # Initialize APScheduler
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(func=db_server_backup, trigger="interval", minutes=5)  # Example: daily backup
+        scheduler.start()
+
+    # Shutdown your scheduler when the app exits
+    @app.teardown_appcontext
+    def shutdown_scheduler(response_or_exc):
+        scheduler.shutdown()
+        return response_or_exc
+
     return app
