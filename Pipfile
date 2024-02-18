@@ -12,6 +12,7 @@ virtualenv = "*"
 python-dotenv = "*"
 l = "*"
 py7zr = "*"
+apscheduler = "*"
 
 [dev-packages]
 ipykernel = "*"
