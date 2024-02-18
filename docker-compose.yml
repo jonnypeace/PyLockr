@@ -7,6 +7,7 @@ services:
       - "5000:5000"
     volumes:
       - ./database:/usr/src/app/database
+      - ./backup:/usr/src/app/backup
     environment:
       - FLASK_APP=app.py
       - FLASK_ENV=development
