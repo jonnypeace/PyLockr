@@ -9,7 +9,22 @@ services:
       - ./database:/usr/src/app/database
       - ./backup:/usr/src/app/backup
     environment:
-      - FLASK_APP=app.py
-      - FLASK_ENV=development
+      - BACKUP_DIR=/usr/src/app/backup
+      - DB_PATH=/usr/src/app/database
+      - SESSION_TIMEOUT=30
+      - MIN_PASSWORD_LENGTH=12
     env_file:
       - .env
+
+  scheduler:
+    build: .
+    volumes:
+      - ./database:/usr/src/app/database
+      - ./backup:/usr/src/app/backup
+    environment:
+      - MAX_DB_BACKUPS=42
+      - BACKUP_FREQUENCY=240
+      - RUN_SCHEDULER=true
+    env_file:
+      - .env
+    entrypoint: ./scheduler_entry.sh
