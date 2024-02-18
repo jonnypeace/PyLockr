@@ -8,9 +8,9 @@ class Config:
     MIN_PASSWORD_LENGTH = int(os.environ.get('MIN_PASSWORD_LENGTH', 12))  # Default to 12 if not set
     SECRET_KEY = os.environ.get('APP_SECRET_KEY')
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=int(os.environ.get('SESSION_TIMEOUT', 30)))
-    DB_PATH = os.path.join(os.getcwd(), os.environ.get('DB_PATH', 'database'), 'users.db')
+    DB_PATH = os.path.join(os.environ.get('DB_PATH', '/usr/src/app/database'), 'users.db')
     FERNET_KEY = os.environ.get('FERNET_KEY')
-    BACKUP_DIR = os.path.join(os.getcwd(), os.environ.get('BACKUP_DIR', 'backup'))
+    BACKUP_DIR = os.path.join(os.environ.get('BACKUP_DIR', '/usr/src/app/backup'))
 
     if FERNET_KEY:
         # Theres a bug in python 3.11/python-dotenv/flask loading .env files with base64 encoding.
