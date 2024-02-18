@@ -8,6 +8,7 @@ from app.utils.db_utils import *
 from html_sanitizer import Sanitizer
 import secrets, string, logging
 from contextlib import contextmanager
+import glob
 
 @contextmanager
 def get_db_connection(passphrase):
@@ -84,39 +85,60 @@ def setup_db():
     conn.commit()
     conn.close()
 
-# def import_csv(filepath: str):
-#     import csv
-#     from pathlib import Path
+def db_server_backup():
+    import subprocess
+    import os
+    from datetime import datetime
 
-#     sanitizer = Sanitizer()
+    # Define variables
+    database_path = os.environ.get('DB_PATH')
+    backup_dir = os.path.join(os.getcwd(), os.environ.get('BACKUP_DIR', 'backup'), 'db_bk_up')
+    encryption_key = os.environ.get('SQLCIPHER_KEY')
 
-#     # Retrieve the secure passphrase
-#     secure_key = get_secure_key()
-    
-#     # Connect to the encrypted database (SQLCipher) using the secure key
-#     conn = get_db_connection(secure_key)
-#     c = conn.cursor()
+    # Ensure the backup directory exists
+    os.makedirs(backup_dir, exist_ok=True)
 
-#     if Path(filepath).exists():
-#         with open(filepath, mode='r') as file:
-#             csv_reader = csv.reader(file)
-#             for row in csv_reader:
-#                 name, username = row[3], row[8]
-#                 encrypted_pass = encrypt_data(sanitizer.sanitize(row[9]))
-#                 encrypted_notes = encrypt_data(sanitizer.sanitize(row[4]))
-#                 # Insert new password into the passwords table
-#                 c.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, notes) VALUES (?, ?, ?, ?, ?)', 
-#                         (session['user_id'], name, username, encrypted_pass, encrypted_notes))
+    # Create a unique backup file name with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    backup_file = f"PyLockr_DB_Backup_{timestamp}.db"
+    backup_path = os.path.join(backup_dir, backup_file)
 
-#         conn.commit()
-#         conn.close()
-    
-# def generate_password(length=12):
-#     """Generate a secure random password."""
-#     alphabet = string.ascii_letters + string.digits + string.punctuation
-#     password = ''.join(secrets.choice(alphabet) for i in range(length))
-#     return password
+    import tempfile
 
-# # Example usage:
-# password = generate_password(16)  # Generate a 16-character password
-# print(password)
+    # Create a temporary file securely
+    with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_sql:
+        temp_sql.write(f'''
+        PRAGMA key = '{encryption_key}';
+        ATTACH DATABASE '{backup_path}' AS backupdb KEY '{encryption_key}';
+        SELECT sqlcipher_export('backupdb');
+        DETACH DATABASE backupdb;
+        ''')
+        temp_sql.flush()  # Ensure data is written to file
+
+        # Build and execute the SQLCipher command
+        sqlcipher_command = f'sqlcipher {database_path} < {temp_sql.name}'
+
+        try:
+            # Capture stdout and stderr for inspection
+            result = subprocess.run(sqlcipher_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+
+            # Check if the command was successful
+            if result.returncode != 0:
+                # Sanitize and log the error message, omitting sensitive information
+                sanitized_error = result.stderr.replace(encryption_key, "[ENCRYPTION KEY]")
+                print(f"Backup failed. Error: {sanitized_error}")
+            else:
+                print(f"Backup completed to {backup_path}")
+                rotate_backups(backup_dir)
+        except Exception as e:
+            # Log a generic message for unexpected errors
+            print("An unexpected error occurred during the backup process.")
+
+def rotate_backups(backup_dir, max_backups=42):
+    # Get a list of backup files sorted by modification time
+    backup_files = sorted(glob.glob(os.path.join(backup_dir, 'PyLockr_DB_Backup_*.db')), key=os.path.getmtime)
+
+    # If we have more backups than max_backups, remove the oldest
+    while len(backup_files) > max_backups:
+        os.remove(backup_files[0])
+        backup_files.pop(0)
