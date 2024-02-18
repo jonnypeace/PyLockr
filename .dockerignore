@@ -10,4 +10,8 @@ README.md
 .env
 test*
 Pip*
-Dockerfile
+Dockerfile*
+docker-compose*
+generate_key*
+app.py
+.flaskenv
