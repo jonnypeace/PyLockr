@@ -385,7 +385,7 @@ class Backup(BaseAuthenticatedView):
 
         import py7zr
         # Save the decrypted data to a CSV file
-        file_path = os.path.join(current_app.config.get('BACKUP_DIR', os.getcwd()), 'passwords.csv')
+        file_path = '/tmp/passwords.csv'
         with open(file_path, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(['name', 'username', 'password', 'category', 'notes'])
@@ -393,7 +393,7 @@ class Backup(BaseAuthenticatedView):
 
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')  # Example: '2024-02-17_18-20'
         # Define the path for the 7z archive
-        archive_path = os.path.join(current_app.config.get('BACKUP_DIR', os.getcwd()), f'backup_password_den_{timestamp}.7z') # Changed extension to .7z
+        archive_path =f'/tmp/PyLockr_bk_{timestamp}.7z'
 
         # Create the 7z archive and add the CSV file
         with py7zr.SevenZipFile(archive_path, mode='w', password=password) as archive:
