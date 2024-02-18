@@ -1,4 +1,3 @@
-# Use an official Python runtime as a parent image
 FROM python:3.11
 
 # Install system dependencies required for pysqlcipher3
@@ -7,21 +6,24 @@ RUN apt-get update && apt-get install -y \
     libsqlcipher-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user and switch to it
+RUN adduser --disabled-password --gecos '' appuser
+
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Copy the current directory contents into the container at /usr/src/app
+# Copy the application code into the container
 COPY . .
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Add local user bin directory to PATH
+ENV PATH="/home/appuser/.local/bin:${PATH}"
+
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
 
-# Define environment variable
-ENV FLASK_APP=app.py
-ENV FLASK_RUN_HOST=0.0.0.0
+# Use Entrypoint for shells
 
-# Run app.py when the container launches
-CMD ["flask", "run"]
+ENTRYPOINT ["./entry.sh"]
