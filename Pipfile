@@ -13,6 +13,7 @@ python-dotenv = "*"
 l = "*"
 py7zr = "*"
 apscheduler = "*"
+gunicorn = "*"
 
 [dev-packages]
 ipykernel = "*"
