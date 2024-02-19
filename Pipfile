@@ -14,6 +14,8 @@ l = "*"
 py7zr = "*"
 apscheduler = "*"
 gunicorn = "*"
+flask-limiter = "*"
+redis = "*"
 
 [dev-packages]
 ipykernel = "*"
