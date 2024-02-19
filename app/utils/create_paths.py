@@ -28,13 +28,13 @@ def setup_db(db_path):
     # for authenticating users
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users
-        ([id] INTEGER PRIMARY KEY AUTOINCREMENT, [username] TEXT UNIQUE NOT NULL, [password_hash] TEXT NOT NULL)
+        ([id] TEXT PRIMARY KEY NOT NULL UNIQUE, [username] TEXT UNIQUE NOT NULL, [password_hash] TEXT NOT NULL)
     ''')
 
     # for password manager
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS passwords
-        ([id] INTEGER PRIMARY KEY AUTOINCREMENT, [user_id] INTEGER NOT NULL, [name] TEXT, [username] TEXT, [encrypted_password] TEXT, [category] TEXT, [notes] TEXT,
+        ([id] INTEGER PRIMARY KEY AUTOINCREMENT, [user_id] TEXT NOT NULL, [name] TEXT, [username] TEXT, [encrypted_password] TEXT, [category] TEXT, [notes] TEXT,
         FOREIGN KEY(user_id) REFERENCES users(id))
     ''')
 
