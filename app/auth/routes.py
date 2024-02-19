@@ -6,7 +6,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from app.utils.security import *
 from app.utils.db_utils import *
+from app.utils.pylockr_logging import *
 from flask.views import MethodView
+import uuid
+from html_sanitizer import Sanitizer
+from app.utils.extensions import limiter  # Adjust the import path as necessary
+
+logger = PyLockrLogs()
+
+sanitizer = Sanitizer()  # Used for name and username
 
 class Logout(MethodView):
     def post(self):
@@ -18,11 +26,13 @@ class Logout(MethodView):
 auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
 class Login(MethodView):
+    decorators = [limiter.limit("5 per minute")]
+
     def post(self):
         '''
         Logs into website and starts a session.
         '''
-        username = request.form['username']
+        username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']
         
         # Retrieve the secure passphrase
@@ -40,8 +50,10 @@ class Login(MethodView):
             # User authenticated successfully
             session['user_id'] = user[0] 
             session['username'] = user[1]  # Log the user in by setting the session
+            logger.info(f'Successful login from {username}')
             return redirect(url_for('main.dashboard'))  # Redirect to the dashboard page after successful login
         else:
+            logger.warning(f'Login Failed: Username {username}')
             return 'Login failed. Check your login details.'
 auth.add_url_rule('/login', view_func=Login.as_view('login'))
 
@@ -94,9 +106,7 @@ class SignUP(MethodView):
     def get(self):
         return render_template('signup.html')  # Render the sign-up page if method is GET
     def post(self):
-        username = request.form['username']
-        password = request.form['password']
-
+        username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']
         confirm_password = request.form['confirm_password']
 
@@ -113,18 +123,26 @@ class SignUP(MethodView):
             flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('auth.signup'))
         
+        # Generate a random UUID for the new user ID
+        user_id = uuid.uuid4()
         # Hash the password for secure storage
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
 
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
-        
+
         # Connect to the encrypted database (SQLCipher) using the secure key
         with get_db_connection(secure_key) as conn:
             c = conn.cursor()
-            # Insert new user into the users table
-            c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, hashed_password))
-            conn.commit()
+            try:
+                c.execute('SELECT * FROM users WHERE username = ?', (username,))
+                if c.fetchone():
+                    return "Username already taken, please choose another."
+                # Insert new user into the users table
+                c.execute('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)', (str(user_id), username, hashed_password))
+                conn.commit()
+            except sqlite.IntegrityError as e:
+                print(f"Error: {e} Username might already be in use.")
 
         return redirect(url_for('main.home'))  # Redirect to the login page after successful registration
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))
