@@ -12,12 +12,13 @@ services:
       - BACKUP_DIR=/usr/src/app/backup
       - DB_PATH=/usr/src/app/database
       - SESSION_TIMEOUT=30
-      - MIN_PASSWORD_LENGTH=12
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - MIN_PASSWORD_LENGTH=10
     env_file:
       - .env
     depends_on:
       - redis  # Ensure the web service starts after Redis
+    networks:
+      - pylockr-network
 
   scheduler:
     build: .
@@ -28,16 +29,19 @@ services:
       - MAX_DB_BACKUPS=42
       - BACKUP_FREQUENCY=240
       - RUN_SCHEDULER=true
-    env_file:
-      - .env
+      - SQLCIPHER_KEY=${SQLCIPHER_KEY}
     entrypoint: ./scheduler_entry.sh
     depends_on:
       - redis  # Ensure the scheduler service starts after Redis
+    networks:
+      - pylockr-network
 
   redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
     command: redis-server --requirepass ${REDIS_PASSWORD}
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    networks:
+      - pylockr-network
+
+networks:
+  pylockr-network:
+    driver: bridge
