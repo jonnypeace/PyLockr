@@ -10,9 +10,10 @@ from app.utils.pylockr_logging import *
 from flask.views import MethodView
 import uuid
 from html_sanitizer import Sanitizer
-from app.utils.extensions import limiter  # Adjust the import path as necessary
+from app.utils.extensions import limiter
+from flask_limiter.util import get_remote_address
 
-logger = PyLockrLogs()
+logger = PyLockrLogs(name='Auth')
 
 sanitizer = Sanitizer()  # Used for name and username
 
@@ -27,7 +28,7 @@ auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
 class Login(MethodView):
     decorators = [limiter.limit("5 per minute")]
-
+    
     def post(self):
         '''
         Logs into website and starts a session.
@@ -45,15 +46,15 @@ class Login(MethodView):
             # Fetch the user by username
             c.execute('SELECT * FROM users WHERE username = ?', (username,))
             user = c.fetchone()
-
+        requested_ip = get_remote_address()
         if user and check_password_hash(user[2], password):
             # User authenticated successfully
             session['user_id'] = user[0] 
             session['username'] = user[1]  # Log the user in by setting the session
-            logger.info(f'Successful login from {username}')
+            logger.info(f'Successful login attempt from IP: {requested_ip}')
             return redirect(url_for('main.dashboard'))  # Redirect to the dashboard page after successful login
         else:
-            logger.warning(f'Login Failed: Username {username}')
+            logger.warning(f'Failed login attempt from IP: {requested_ip}')
             return 'Login failed. Check your login details.'
 auth.add_url_rule('/login', view_func=Login.as_view('login'))
 
@@ -63,7 +64,7 @@ class ChangeUserPass(MethodView):
     Default minimum password length is 12.
     '''
     def get(self):
-        return render_template('change_user_password.html')
+        return render_template('change_user_password.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
     def post(self):
         current_password = request.form['current_password']
         new_password = request.form['new_password']
@@ -77,6 +78,8 @@ class ChangeUserPass(MethodView):
         if len(new_password) < current_app.config['MIN_PASSWORD_LENGTH'] or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
             flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('auth.change_user_password'))
+
+        requested_ip = get_remote_address()
 
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
@@ -94,23 +97,27 @@ class ChangeUserPass(MethodView):
                     new_password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
                     c.execute('UPDATE users SET password_hash = ? WHERE username = ?', (new_password_hash, username))
                     conn.commit()
+                    logger.info(f'User successfully changed password: IP {requested_ip}')
                     flash('Password successfully updated.', 'success')
                 else:
+                    logger.warning(f'User password and confirmation do not match during password change: IP {requested_ip}')
                     flash('New password and confirmation do not match.', 'error')
             else:
+                logger.warning(f'User password change failed: IP {requested_ip}')
                 flash('Current password is incorrect.', 'error')
         return redirect(url_for('main.dashboard'))
 auth.add_url_rule('/change_user_password', view_func=ChangeUserPass.as_view('change_user_password'))
 
 class SignUP(MethodView):
     def get(self):
-        return render_template('signup.html')  # Render the sign-up page if method is GET
+        return render_template('signup.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
     def post(self):
         username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']
         confirm_password = request.form['confirm_password']
 
         if password != confirm_password:
+            logger.warning(f'Signup Failed, passwords do not match: Username {username}')
             flash('Passwords do not match. Please try again.', 'error')
             return redirect(url_for('auth.signup'))
 
@@ -137,12 +144,14 @@ class SignUP(MethodView):
             try:
                 c.execute('SELECT * FROM users WHERE username = ?', (username,))
                 if c.fetchone():
+                    logger.error(f'Username already be in use')
                     return "Username already taken, please choose another."
                 # Insert new user into the users table
                 c.execute('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)', (str(user_id), username, hashed_password))
                 conn.commit()
             except sqlite.IntegrityError as e:
-                print(f"Error: {e} Username might already be in use.")
+                logger.error(f'Database Error, Username may already be in use')
+                logger.error(e)
 
-        return redirect(url_for('main.home'))  # Redirect to the login page after successful registration
+        return redirect(url_for('main.home'))
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))
