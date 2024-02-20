@@ -4,15 +4,14 @@ from app.utils.security import *
 from app.utils.db_utils import *
 from app.utils.pylockr_logging import *
 from flask import Flask, current_app, render_template, request, redirect, url_for, session, flash, Response, send_file, make_response
-from pathlib import Path
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView
-from werkzeug.utils import secure_filename
-import re
+import re, os, csv, py7zr
+from flask_limiter.util import get_remote_address
 
 sanitizer = Sanitizer()  # Used for name and username
-logger = PyLockrLogs()
+logger = PyLockrLogs(name='Main_Routes')
 
 class BaseAuthenticatedView(MethodView):
     '''
@@ -43,11 +42,10 @@ class UploadCSV(BaseAuthenticatedView):
 
         try:
             self.process_file(file)
-            flash('*** File successfully uploaded ***', 'success')
+            flash('*** CSV File successfully uploaded ***', 'success')
         except Exception as e:
-            # Log the error and provide a generic error message to the user
-            # Assuming a logging mechanism exists
-            print(f"Error processing file: {e}")  # Replace with your logging mechanism
+            # General Error Catch
+            logger.error(f"Error processing CSV file: {e}")
             flash('Error processing the file.', 'error')
 
         return redirect(url_for('main.dashboard'))
@@ -65,11 +63,14 @@ class UploadCSV(BaseAuthenticatedView):
         with get_db_connection(secure_key) as conn, file_stream:
             c = conn.cursor()
             row_index_dict: dict = dict()
-            for num,row in enumerate(csv_reader):
-                if num == 0: # skip the header section of the CSV file
-                    row_index_dict = self.check_indexes(row)
-                    continue
-                self.insert_password_row(c, row, row_index_dict)
+            try:
+                for num,row in enumerate(csv_reader):
+                    if num == 0: # skip the header section of the CSV file
+                        row_index_dict = self.check_indexes(row)
+                        continue
+                    self.insert_password_row(c, row, row_index_dict)
+            except csv.Error as e:
+                logger.error(f"Error processing CSV upload file: {e}")
             conn.commit()
 
     @staticmethod
@@ -167,7 +168,6 @@ class AddPassword(BaseAuthenticatedView):
     Username and Name Entries are sanaitized, to avoid sql injection
     '''
     def get(self):
-        # If it's a GET request, render the add_password.html template
         return render_template('add_password.html')
     def post(self):
         name = sanitizer.sanitize(request.form['name'])
@@ -192,7 +192,6 @@ class AddPassword(BaseAuthenticatedView):
         # Connect to the encrypted database (SQLCipher) using the secure key
         with get_db_connection(secure_key) as conn:
             c = conn.cursor()
-        
             # Insert new password into the passwords table
             c.execute('INSERT INTO passwords (user_id, name, username, encrypted_password, category, notes) VALUES (?, ?, ?, ?, ?, ?)', 
                     (session['user_id'], name, username,encrypted_password, category, encrypted_notes))
@@ -200,7 +199,7 @@ class AddPassword(BaseAuthenticatedView):
             conn.commit()
         flash('Password added successfully!', 'success')
 
-        return redirect(url_for('main.dashboard'))  # Redirect back to the dashboard
+        return redirect(url_for('main.dashboard'))
 
 main.add_url_rule('/add_password', view_func=AddPassword.as_view('add_password'))
 
@@ -248,6 +247,8 @@ class DeletePassword(BaseAuthenticatedView):
             # Delete the password entry
             c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
             conn.commit()
+        current_ip = get_remote_address()
+        logger.info(f'user successfully deleted password {current_ip}')
 
         return redirect(url_for('main.retrieve_passwords'))
     
@@ -273,7 +274,9 @@ class DeleteMultiplePasswords(BaseAuthenticatedView):
                     c.execute('DELETE FROM passwords WHERE id = ? AND user_id = ?', (password_id, session['user_id']))
                 
                 conn.commit()
-
+                
+            current_ip = get_remote_address()
+            logger.info(f'user successfully deleted {len(selected_passwords)} passwords: IP {current_ip}')
             flash(f'Deleted {len(selected_passwords)} passwords.', 'success')
         
         return redirect(url_for('main.retrieve_passwords'))
@@ -319,6 +322,8 @@ class EditPassword(BaseAuthenticatedView):
             c.execute('UPDATE passwords SET name = ?, username = ?, encrypted_password = ?, category = ?, notes = ? WHERE id = ? AND user_id = ?', 
                       (name, username, encrypted_password, category, encrypted_notes, password_id, session['user_id']))
             conn.commit()
+            current_ip = get_remote_address()
+            logger.info(f'user successfully edited password: IP {current_ip}')
         
         return redirect(url_for('main.retrieve_passwords'))
 
@@ -328,7 +333,7 @@ main.add_url_rule('/edit_password/<int:password_id>', view_func=EditPassword.as_
 class DecryptPassword(BaseAuthenticatedView):
     def get(self, password_id):
         '''
-        Decrypt the passwords from database
+        Decrypt the passwords from database, this is used for copy to clipboard button
         '''
         
         # Retrieve the secure passphrase
@@ -346,7 +351,9 @@ class DecryptPassword(BaseAuthenticatedView):
             decrypted_password = decrypt_data(encrypted_password[0])
             return decrypted_password  # Send the decrypted password back
         else:
-            return 'Password not found or access denied', 403  # Or handle as appropriate
+            current_ip = get_remote_address()
+            logger.error(f'Isssue encountered with user trying to use copy to clipboard: IP {current_ip}')
+            return 'Password not found or access denied', 403
     
 main.add_url_rule('/decrypt_password/<int:password_id>', view_func=DecryptPassword.as_view('decrypt_password'))
 
@@ -361,7 +368,7 @@ class Backup(BaseAuthenticatedView):
         password = request.form.get('backupPassword')
         if not password:
             flash('Password is required for backup.', 'error')
-            return redirect(url_for('backup'))  # Adjust 'backup' to match your route's endpoint name
+            return redirect(url_for('backup'))
 
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
@@ -382,10 +389,6 @@ class Backup(BaseAuthenticatedView):
             decrypted_notes = current_app.config['CIPHER_SUITE'].decrypt(encrypted_notes).decode()
             decrypted_data.append([name, username, decrypted_password, category, decrypted_notes])
 
-        import csv
-        import os
-
-        import py7zr
         # Save the decrypted data to a CSV file
         file_path = '/tmp/passwords.csv'
         with open(file_path, 'w', newline='') as file:
@@ -393,8 +396,7 @@ class Backup(BaseAuthenticatedView):
             writer.writerow(['name', 'username', 'password', 'category', 'notes'])
             writer.writerows(decrypted_data)
 
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')  # Example: '2024-02-17_18-20'
-        # Define the path for the 7z archive
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
         archive_path =f'/tmp/PyLockr_bk_{timestamp}.7z'
 
         # Create the 7z archive and add the CSV file
@@ -402,10 +404,20 @@ class Backup(BaseAuthenticatedView):
             archive.write(file_path, os.path.basename(file_path))
 
         self.secure_delete(file_path)
+        current_ip = get_remote_address()
         try: 
-            return send_file(archive_path, as_attachment=True, download_name=os.path.basename(archive_path))
+            # Prep the send file to the client
+            response = send_file(archive_path, as_attachment=True, download_name=os.path.basename(archive_path))
+            # Log and respond the attempt to send the file
+            logger.info(f'Successful backup download initiated for IP {current_ip}')
+            return response
+        except Exception as e:
+            logger.error(f'Backup download failed for IP {current_ip}: {e}')
+            flash('An error occurred during the backup download.', 'error')
+            return redirect(url_for('backup')) 
         finally:
-            os.remove(archive_path)
+            # Cleanup the server-side file after sending
+            self.secure_delete(archive_path)
     
     @staticmethod
     def secure_delete(file_path, passes=3):
