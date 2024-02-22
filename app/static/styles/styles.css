@@ -277,7 +277,7 @@ div.dts div.dataTables_scrollBody table {
   z-index: 2;
 }
 
-/* Ensure table headers match the dark theme */
+/* Ensure table headers match the dark theme and darker green*/
 div.dts div.dt-scroll-body table th,
 div.dts div.dataTables_scrollBody table th {
         background-color: #2c6430;
