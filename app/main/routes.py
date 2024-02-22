@@ -1,9 +1,8 @@
-from os import name
 from . import main
 from app.utils.security import *
 from app.utils.db_utils import *
 from app.utils.pylockr_logging import *
-from flask import Flask, current_app, render_template, request, redirect, url_for, session, flash, Response, send_file, make_response
+from flask import current_app, render_template, request, redirect, url_for, session, flash, send_file, make_response
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView

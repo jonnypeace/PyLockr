@@ -3,12 +3,11 @@
 from . import auth
 from flask import render_template, request, redirect, url_for, session, flash, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
-import re
+import re, uuid
 from app.utils.security import *
 from app.utils.db_utils import *
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
-import uuid
 from html_sanitizer import Sanitizer
 from app.utils.extensions import limiter
 from flask_limiter.util import get_remote_address
@@ -32,6 +31,7 @@ class Login(MethodView):
     def post(self):
         '''
         Logs into website and starts a session.
+        Rate limited, 5 per minute.
         '''
         username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']

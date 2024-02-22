@@ -50,7 +50,9 @@ def setup_db(db_path):
     conn.close()
 
 def set_up():
-
+    '''
+    Sets up the databases, and path directories for both database and backup.
+    '''
     db_path = Path(Config.DB_PATH).parent
     db_path.mkdir(parents=True, exist_ok=True)
     backup_path = Path(Config.BACKUP_DIR)
