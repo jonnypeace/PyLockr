@@ -2,9 +2,11 @@
 
 from pysqlcipher3 import dbapi2 as sqlite
 from flask import current_app
+from app.utils.pylockr_logging import PyLockrLogs
 from app.utils.security import *
-import logging
 from contextlib import contextmanager
+
+logger = PyLockrLogs(name=__name__)
 
 @contextmanager
 def get_db_connection(passphrase):
@@ -29,11 +31,11 @@ def get_db_connection(passphrase):
         cursor.execute(f"PRAGMA key = '{passphrase}'")
         yield conn
     except sqlite.DatabaseError as e:
-        logging.error(f"Database error: {e}")
+        logger.error(f"Database error: {e}")
         # Handle database-specific errors, e.g., incorrect passphrase, corrupted database
         raise
     except Exception as e:
-        logging.error(f"Unexpected error when working with the database: {e}")
+        logger.error(f"Unexpected error when working with the database: {e}")
         # Handle any other unexpected errors
         raise
     finally:
