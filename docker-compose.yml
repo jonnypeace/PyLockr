@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: ./dockerfiles/Dockerfile
     ports:
       - "5000:5000"
     volumes:
@@ -21,16 +23,19 @@ services:
       - pylockr-network
 
   scheduler:
-    build: .
+    build:
+      context: .
+      dockerfile: ./dockerfiles/Dockerfile_Scheduler
     volumes:
       - ./database:/usr/src/app/database
       - ./backup:/usr/src/app/backup
     environment:
+      - BACKUP_DIR=/usr/src/app/backup
+      - DB_PATH=/usr/src/app/database
       - MAX_DB_BACKUPS=42
       - BACKUP_FREQUENCY=240
       - RUN_SCHEDULER=true
       - SQLCIPHER_KEY=${SQLCIPHER_KEY}
-    entrypoint: ./scheduler_entry.sh
     depends_on:
       - redis  # Ensure the scheduler service starts after Redis
     networks:
