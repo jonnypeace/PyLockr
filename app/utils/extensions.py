@@ -2,7 +2,9 @@
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import os
-
+'''
+Sets up redis with rate limiting
+'''
 redis_password: str = os.environ.get('REDIS_PASSWORD')
 
 if redis_password:
