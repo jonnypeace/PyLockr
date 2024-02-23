@@ -25,11 +25,13 @@ def generate_keys():
           export SECRET_KEY='{flask_secret_key}'
           export SQLCIPHER_KEY='{sqlcipher_key}'
           export FERNET_KEY='{fernet_decoded_key}'
+          export REDIS_PASSWORD={generate_secret_key()}
           
           or .env file (better if using a docker build):
           SECRET_KEY='{flask_secret_key}
           SQLCIPHER_KEY='{sqlcipher_key}'
           FERNET_KEY='{fernet_decoded_key}'
+          REDIS_PASSWORD={generate_secret_key()}
           
           Please Backup These keys, especially the SQLCIPHER_KEY which encrypts the database,
           and the FERNET_KEY which applies another layer and encrypts passwords and notes.
