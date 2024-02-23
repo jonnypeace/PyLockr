@@ -74,8 +74,7 @@ docker-compose up
 
 This web app has been designed to do several things, mostly automatically where possible.
 
-We set up 3 services and a network to keep the web app services segragated from any other docker instances. In my docker-compose, you will see
-that I have tried my best to limit each services capability. The only ports exposed will be on the web app itself.
+We set up 3 services and a network to keep the web app services segragated from any other docker instances. In my docker-compose, you will see that I have tried my best to limit each services capability. The only ports exposed will be on the web app itself.
 
 Since this webapp uses SQLCipher, the entire database will be encrypted. The authentican password is hashed, the username is sanitized. All passwords and notes entered into the database go through a second phase of encryption, which is what the FERNET_KEY is for.
 
@@ -129,10 +128,7 @@ Since we're using SQLCipher, i wanted to utilize the clean backup utility provid
 
 ## Redis
 
-There's not a lot to say about the use of this. Except, when you start your docker app, the logs will complain about setting your overcommit memory to 1.
-This is in the documentation from Redis, and has something to do with forks, and the children unable to sometimes get the memory they need. For myself,
-I'll be setting this up in a virtual machine, and will likely limit the memory in a redit config, but it will also have allocated virtual machine memory
-rather than playing with the host system. Not a requirement, but a step i would probably choose to run this the recommended way.
+There's not a lot to say about the use of this. Except, when you start your docker app, the logs will complain about setting your overcommit memory to 1. This is in the documentation from Redis, and has something to do with forks, and the children unable to sometimes get the memory they need. For myself, I'll be setting this up in a virtual machine, and will likely limit the memory in a redit config, but it will also have allocated virtual machine memory rather than playing with the host system. Not a requirement, but a step i would probably choose to run this the recommended way.
 
 ```yaml
   redis:
