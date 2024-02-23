@@ -1,4 +1,4 @@
-# Password Den
+# PyLockr
 
 ## Setting up the Virtual Environment on Arch Linux
 
@@ -128,7 +128,7 @@ Since we're using SQLCipher, i wanted to utilize the clean backup utility provid
 
 ## Redis
 
-There's not a lot to say about the use of this. Except, when you start your docker app, the logs will complain about setting your overcommit memory to 1. This is in the documentation from Redis, and has something to do with forks, and the children unable to sometimes get the memory they need. For myself, I'll be setting this up in a virtual machine, and will likely limit the memory in a redit config, but it will also have allocated virtual machine memory rather than playing with the host system. Not a requirement, but a step i would probably choose to run this the recommended way.
+There's not a lot to say about the use of this. Except, when you start your docker app, the logs will complain about setting your overcommit memory to 1. This is in the documentation from Redis, and has something to do with forks, and the children unable to sometimes get the memory they need. For myself, I'll be setting this up in a virtual machine, and will likely limit the memory in a redis config, but it will also have allocated virtual machine memory rather than playing with the host system. Not a requirement, but a step i would probably choose to run this the recommended way.
 
 ```yaml
   redis:
@@ -226,12 +226,12 @@ I think navigating around is self explanatory. There are not too many webpages, 
 * Automatic backups using the scheduling service, as detailed above
 * Sanitizing, hashing, double encyption.
 * The retrieved passwords table never see's your passwords. The only method of returning your password is while editing, or with the copy to clipboard.
-* Download your user passwords. If you decide to move along, or just want a backup, this feature is available. I decided to make sure your passwords were safe my encrypting the CSV with AES-256, in a 7zip archive.
+* Download your user passwords. If you decide to move along, or just want a backup, this feature is available. I decided to make sure your passwords were safe by encrypting the CSV with AES-256, in a 7zip archive.
 
 Features i'd like to implement...
 
 * A Commandline interface. I am looking at several options, including...
-    - SSH, for remove instances
+    - SSH, for remote instances
     - Making it wofi friendly, perhaps with a wofi script.
 * Include an NGINX reverse proxy setup, with some security protocols
 * Apply more web app security
