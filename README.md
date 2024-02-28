@@ -1,5 +1,7 @@
 # PyLockr
 
+A simple password manager written mostly in python using the Flask Library. PyLockr builds with docker have been implemented as the go-to choice for using this application. Users should think carefully about setting this up behind an HTTPS connection, using something like certbot with nginx. I will be detailing these steps in a future README.
+
 ## Setting up the Virtual Environment on Arch Linux
 
 Some development packages to install
@@ -236,3 +238,20 @@ Features i'd like to implement...
 * Include an NGINX reverse proxy setup, with some security protocols
 * Apply more web app security
 * A frontpage png that doesn't mention my name...
+* Automatic Password Generation
+
+If there are features you'd like to see, i welcome feedback and contributions.
+
+Limitations...
+
+* Testing. I'm one person, learning as I go.
+* No mandatory requirement for HTTPS, but I would highly recommend using HTTPS.
+* Uncertain how imports from other password managers will work. Only tested with Brave browser and Vaultwarden
+* Documentation. This might take some time to get right, but it is a simple web app, and hopefully i've explained most of it.
+* No 2FA. I've been on the fence with this, but it's probably needed. I have planned to use this behind wireguard, in isolation, behind reverse proxies etc etc. Not everyone will do this though, so if you really want this let me know.
+
+### Contact Details
+
+If you would like to help, contribute, provide feedback (good or bad), I will always be willing to listen. Feel free to raise Github issues.
+
+You can get me on jonnypeace@outlook.com (but i will warn you, i'm a busy person)
