@@ -2,12 +2,13 @@ from . import main
 from app.utils.security import *
 from app.utils.db_utils import *
 from app.utils.pylockr_logging import *
-from flask import current_app, render_template, request, redirect, url_for, session, flash, send_file, make_response
+from flask import current_app, render_template, request, redirect, url_for, session, flash, send_file, make_response, g, after_this_request
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView
-import re, os, csv, py7zr
+import re, os, csv, py7zr, time
 from flask_limiter.util import get_remote_address
+from threading import Thread
 
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='Main_Routes')
@@ -110,25 +111,10 @@ main.add_url_rule('/upload_csv', view_func=UploadCSV.as_view('upload_csv'))
 
 class Home(MethodView):
     def get(self):
-        '''
-        Content security policy settings. Allows use of jquery datatables
-        '''
         # Render the template as usual
         content = render_template('login.html')
-
         # Create a response object from the rendered template
         response = make_response(content)
-
-        # Define your CSP policy
-        csp_policy = (
-            "default-src 'self';"
-            "script-src 'self' https://code.jquery.com https://cdn.datatables.net;"
-            "object-src 'none';"
-            "style-src 'self' 'unsafe-inline';"
-        )
-        # Add the CSP policy to the response headers
-        response.headers['Content-Security-Policy'] = csp_policy
-
         return response
 
 main.add_url_rule('/', view_func=Home.as_view('home'))
@@ -167,7 +153,7 @@ class AddPassword(BaseAuthenticatedView):
     Username and Name Entries are sanaitized, to avoid sql injection
     '''
     def get(self):
-        return render_template('add_password.html')
+        return render_template('add_password.html', nonce=g.nonce)
     def post(self):
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
@@ -184,7 +170,7 @@ class AddPassword(BaseAuthenticatedView):
         # Validate lengths
         if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes or len(category) > max_length_category:
             # Handle error: return an error message or redirect
-            return "Error: Input data too long.", 400
+            return f"Error: Input data too long.", 400
 
         # Retrieve the secure passphrase
         secure_key = get_secure_key()
@@ -230,7 +216,7 @@ class RetrievePasswords(BaseAuthenticatedView):
                 vault_data[i][3]
             )
 
-        return render_template('retrieve_passwords.html', passwords=vault_data)
+        return render_template('retrieve_passwords.html', passwords=vault_data, nonce=g.nonce)
     
 main.add_url_rule('/retrieve_passwords', view_func=RetrievePasswords.as_view('retrieve_passwords'))
 
@@ -294,7 +280,7 @@ class EditPassword(BaseAuthenticatedView):
             decrypted_password = current_app.config['CIPHER_SUITE'].decrypt(password_data[2]).decode()
             decrypted_notes = decrypt_data(password_data[4])
             return render_template('edit_password.html', password_data=password_data, name=password_data[0],
-                                        username=password_data[1], password=decrypted_password, category=password_data[3], notes=decrypted_notes)
+                                        username=password_data[1], password=decrypted_password, category=password_data[3], notes=decrypted_notes, nonce=g.nonce)
         else:
             return 'Password not found or access denied', 403
 
@@ -402,9 +388,20 @@ class Backup(BaseAuthenticatedView):
         with py7zr.SevenZipFile(archive_path, mode='w', password=password) as archive:
             archive.write(file_path, os.path.basename(file_path))
 
-        self.secure_delete(file_path)
         current_ip = get_remote_address()
-        try: 
+
+        self.secure_delete(file_path)
+        @after_this_request
+        def cleanup(response):
+            def delayed_cleanup():
+                time.sleep(60)  # Wait for 60 seconds before deleting
+                self.secure_delete(archive_path)
+                logger.info("Backup file removed successfully.")
+            Thread(target=delayed_cleanup).start()
+
+            return response
+
+        try:
             # Prep the send file to the client
             response = send_file(archive_path, as_attachment=True, download_name=os.path.basename(archive_path))
             # Log and respond the attempt to send the file
@@ -414,10 +411,7 @@ class Backup(BaseAuthenticatedView):
             logger.error(f'Backup download failed for IP {current_ip}: {e}')
             flash('An error occurred during the backup download.', 'error')
             return redirect(url_for('backup')) 
-        finally:
-            # Cleanup the server-side file after sending
-            self.secure_delete(archive_path)
-    
+
     @staticmethod
     def secure_delete(file_path, passes=3):
         """Securely delete a file using a specified number of overwrite passes."""
