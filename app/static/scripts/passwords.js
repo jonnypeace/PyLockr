@@ -1,3 +1,15 @@
+document.addEventListener('DOMContentLoaded', function () {
+    var generateButton = document.getElementById('generatePasswordButton');
+    if (generateButton) {
+        generateButton.addEventListener('click', generateAndFillPassword);
+    }
+
+    var passwordToggle = document.getElementById('showPassword');
+    if (passwordToggle) {
+        passwordToggle.addEventListener('change', togglePasswordVisibility);
+    }
+});
+
 function generatePassword(length) {
     var charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_+<>?";
     var password = "";
