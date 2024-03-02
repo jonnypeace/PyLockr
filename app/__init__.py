@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 
-from flask import Flask, g
+from flask import Flask, g,request
 from .main import main as main_blueprint
 from .auth import auth as auth_blueprint
 from config import Config
-import secrets
+import secrets,json
+from .utils.pylockr_logging import PyLockrLogs
 
 from .utils.extensions import limiter  # Import the limiter
+
+logger = PyLockrLogs(name='CreateApp')
 
 def create_app():
     app = Flask(__name__)
@@ -19,13 +22,24 @@ def create_app():
     def set_csp_nonce():
         nonce = generate_nonce()
         g.nonce = nonce  # Store the nonce in g for access in templates
-       # Define the CSP policy with the nonce
+
+        report_to = {
+            "group": "default",
+            "max_age": 10886400,
+            "endpoints": [{"url": "/csp-report-endpoint"}],
+            "include_subdomains": True
+        }
+
+        report_to_json = json.dumps(report_to)
+
         csp_policy = (
             "default-src 'self';"
             f"script-src 'self' https://code.jquery.com https://cdn.datatables.net 'nonce-{nonce}';"
-            #"script-src 'self' 'unsafe-inline' 'nonce-{nonce}';"
-            "style-src 'self' 'unsafe-inline' https://cdn.datatables.net;"
+            "style-src 'self' https://cdn.datatables.net;"
             "object-src 'none';"
+            "img-src 'self';"
+            "report-uri /csp-report-endpoint;"
+         #   f'report-to "{report_to_json}"'
             "connect-src 'self';"
         )
         
@@ -35,6 +49,16 @@ def create_app():
     def apply_csp(response):
         response.headers['Content-Security-Policy'] = g.csp_policy
         return response
+
+    @app.route('/csp-report-endpoint', methods=['POST'])
+    def csp_report():
+        report = request.get_json()
+        if report is None:
+            logger.error("CSP Report is empty or not JSON.")
+            return '', 204
+        else:
+            logger.warning(f"CSP Violation: {report}")
+            return '', 204
 
     # Initialize Flask-Limiter with the app
     limiter.init_app(app)

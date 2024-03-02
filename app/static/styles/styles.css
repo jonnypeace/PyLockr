@@ -90,6 +90,7 @@ h1 {
     border-radius: 4px;
     cursor: pointer;
     font-size: 16px;
+    text-align: center;
 }
 
 .actions button:hover, .actions a button:hover {
@@ -306,4 +307,21 @@ div.dts div.dataTables_scrollBody table tr:nth-child(odd) {
 div.dts div.dt-scroll-body table tr:nth-child(even),
 div.dts div.dataTables_scrollBody table tr:nth-child(even) {
   background-color: #121212;
+}
+
+/* styles.css */
+.alert-error {
+    color: rgb(180, 11, 11);
+}
+
+.alert-ok {
+    color: aquamarine;
+}
+
+.csv-file {
+    display: none;
+}
+
+.center-text {
+    text-align: center;
 }
