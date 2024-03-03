@@ -6,14 +6,18 @@ from .auth import auth as auth_blueprint
 from config import Config
 import secrets,json
 from .utils.pylockr_logging import PyLockrLogs
-
-from .utils.extensions import limiter  # Import the limiter
+from .utils.db_utils import Session, set_up_bk_up_dir
+from .utils.extensions import limiter
 
 logger = PyLockrLogs(name='CreateApp')
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        Session.remove()
 
     def generate_nonce():
         return secrets.token_urlsafe(16)
@@ -65,4 +69,5 @@ def create_app():
     app.register_blueprint(main_blueprint)
     # app.register_blueprint(auth_blueprint, url_prefix='/auth') ####### Consider for future
     app.register_blueprint(auth_blueprint)
+    set_up_bk_up_dir() # Sets up backup directory
     return app

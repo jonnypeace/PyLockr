@@ -8,38 +8,37 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./database:/usr/src/app/database
       - ./backup:/usr/src/app/backup
     environment:
       - BACKUP_DIR=/usr/src/app/backup
-      - DB_PATH=/usr/src/app/database
       - SESSION_TIMEOUT=30
       - MIN_PASSWORD_LENGTH=10
+      - DB_PATH=mariadb+mariadbconnector://${MYSQL_USER}:${MYSQL_PASSWORD}@mariadb:3306/pylockrdb
     env_file:
       - .env
     depends_on:
-      - redis  # Ensure the web service starts after Redis
+      - redis
+      - mariadb  # Ensure the web service starts after MariaDB is ready
     networks:
       - pylockr-network
 
-  scheduler:
-    build:
-      context: .
-      dockerfile: ./dockerfiles/Dockerfile_Scheduler
-    volumes:
-      - ./database:/usr/src/app/database
-      - ./backup:/usr/src/app/backup
-    environment:
-      - BACKUP_DIR=/usr/src/app/backup
-      - DB_PATH=/usr/src/app/database
-      - MAX_DB_BACKUPS=42
-      - BACKUP_FREQUENCY=240
-      - RUN_SCHEDULER=true
-      - SQLCIPHER_KEY=${SQLCIPHER_KEY}
-    depends_on:
-      - redis  # Ensure the scheduler service starts after Redis
-    networks:
-      - pylockr-network
+  # scheduler:
+  #   build:
+  #     context: .
+  #     dockerfile: ./dockerfiles/Dockerfile_Scheduler
+  #   volumes:
+  #     - ./backup:/usr/src/app/backup
+  #   environment:
+  #     - BACKUP_DIR=/usr/src/app/backup
+  #     - MAX_DB_BACKUPS=42
+  #     - BACKUP_FREQUENCY=240
+  #     - RUN_SCHEDULER=true
+  #     - DB_PATH=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mariadb/pylockrdb
+  #   depends_on:
+  #     - redis
+  #     - mariadb  # Ensure the scheduler service starts after MariaDB is ready
+  #   networks:
+  #     - pylockr-network
 
   redis:
     image: redis:alpine
@@ -47,6 +46,21 @@ services:
     networks:
       - pylockr-network
 
+  mariadb:
+    image: mariadb:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT}  # Reusing SQLCIPHER_KEY for simplicity
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=pylockrdb
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - pylockr-network
+
 networks:
   pylockr-network:
     driver: bridge
+
+volumes:
+  mariadb_data: {}

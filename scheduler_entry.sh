@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 
-# Delay execution until the database setup is complete
-while [ ! -f /usr/src/app/database/users.db ]; do
-  sleep 1
-done
-
 chown -R appuser:appuser /usr/src/app
 # Run the scheduling service
 echo "Starting the scheduling service..."

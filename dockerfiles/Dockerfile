@@ -1,10 +1,6 @@
 FROM python:3.11
 
-# Install system dependencies required for pysqlcipher3
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libsqlcipher-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and switch to it
 RUN adduser --disabled-password --gecos '' appuser

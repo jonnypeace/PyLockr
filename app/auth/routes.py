@@ -2,10 +2,8 @@
 
 from . import auth
 from flask import render_template, request, redirect, url_for, session, flash, current_app
-from werkzeug.security import generate_password_hash, check_password_hash
-import re, uuid
-from app.utils.security import *
-from app.utils.db_utils import *
+import re
+from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, encrypt_data
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
@@ -16,12 +14,28 @@ logger = PyLockrLogs(name='Auth')
 
 sanitizer = Sanitizer()  # Used for name and username
 
+def is_password_complex(password):
+    """Check if the password meets complexity requirements."""
+    min_length = current_app.config['MIN_PASSWORD_LENGTH']
+    if len(password) < min_length:
+        return False
+    if not re.search(r"[A-Z]", password):
+        return False
+    if not re.search(r"[a-z]", password):
+        return False
+    if not re.search(r"[0-9]", password):
+        return False
+    if not re.search(r"[!@#$%^&*()-_+<>?]", password):
+        return False
+    return True
+
 class Logout(MethodView):
     def post(self):
         '''
         Logs out and clears the session and redirects to homepage.
         '''
         session.clear()
+        flash('You have been logged out.')
         return redirect(url_for('main.home'))
 auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
@@ -36,26 +50,19 @@ class Login(MethodView):
         username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']
         
-        # Retrieve the secure passphrase
-        secure_key = get_secure_key()
-        
-        # Connect to the encrypted database (SQLCipher) using the secure key
-        with get_db_connection(secure_key) as conn:
-            c = conn.cursor()
-        
-            # Fetch the user by username
-            c.execute('SELECT * FROM users WHERE username = ?', (username,))
-            user = c.fetchone()
         requested_ip = get_remote_address()
-        if user and check_password_hash(user[2], password):
-            # User authenticated successfully
-            session['user_id'] = user[0] 
-            session['username'] = user[1]  # Log the user in by setting the session
+        user = authenticate_user(username, password)
+        if user:
+            session['user_id'] = user.id
+            session['username'] = user.username
+            flash('Login successful.')
             logger.info(f'Successful login attempt from IP: {requested_ip}')
-            return redirect(url_for('main.dashboard'))  # Redirect to the dashboard page after successful login
+            return redirect(url_for('main.dashboard'))
         else:
+            flash('Invalid username or password.')
             logger.warning(f'Failed login attempt from IP: {requested_ip}')
-            return 'Login failed. Check your login details.'
+            return redirect(url_for('auth.login_form'))
+
 auth.add_url_rule('/login', view_func=Login.as_view('login'))
 
 class ChangeUserPass(MethodView):
@@ -65,47 +72,34 @@ class ChangeUserPass(MethodView):
     '''
     def get(self):
         return render_template('change_user_password.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
+
     def post(self):
         current_password = request.form['current_password']
         new_password = request.form['new_password']
         confirm_new_password = request.form['confirm_new_password']
+        requested_ip = get_remote_address()
+        username = session.get('username')
 
-        uppercase_characters = len(re.findall(r"[A-Z]", new_password))
-        lowercase_characters = len(re.findall(r"[a-z]", new_password))
-        numerical_characters = len(re.findall(r"[0-9]", new_password))
-        special_characters = len(re.findall(r"[!@#$%^&*()-_+<>?]", new_password))
-        
-        if len(new_password) < current_app.config['MIN_PASSWORD_LENGTH'] or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
+        # Password complexity check
+        if not is_password_complex(new_password):
             flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('auth.change_user_password'))
 
-        requested_ip = get_remote_address()
+        # New passwords match check
+        if new_password != confirm_new_password:
+            logger.warning(f'Passwords Did Not Match during password change: IP {requested_ip}')
+            flash('New passwords do not match.', 'error')
+            return redirect(url_for('auth.change_user_password'))
 
-        # Retrieve the secure passphrase
-        secure_key = get_secure_key()
-        username = session['username']
-        # Connect to the encrypted database (SQLCipher) using the secure key
-        with get_db_connection(secure_key) as conn:
-            c = conn.cursor()
-            # Insert new user into the users table
-            c.execute('SELECT * FROM users WHERE username = ?', (username,))
-            user = c.fetchone()
-            if user and check_password_hash(user[2], current_password):
-                # Check if new password and confirmation match
-                if new_password == confirm_new_password:
-                    # Update password
-                    new_password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
-                    c.execute('UPDATE users SET password_hash = ? WHERE username = ?', (new_password_hash, username))
-                    conn.commit()
-                    logger.info(f'User successfully changed password: IP {requested_ip}')
-                    flash('Password successfully updated.', 'success')
-                else:
-                    logger.warning(f'User password and confirmation do not match during password change: IP {requested_ip}')
-                    flash('New password and confirmation do not match.', 'error')
-            else:
-                logger.warning(f'User password change failed: IP {requested_ip}')
-                flash('Current password is incorrect.', 'error')
-        return redirect(url_for('main.dashboard'))
+        # Attempt to update the user's password
+        if update_user_password(username, current_password, new_password):
+            flash('Password successfully updated.', 'success')
+            return redirect(url_for('main.dashboard'))
+        else:
+            flash('Current password is incorrect or update failed.', 'error')
+            return redirect(url_for('auth.change_user_password'))
+
+
 auth.add_url_rule('/change_user_password', view_func=ChangeUserPass.as_view('change_user_password'))
 
 class SignUP(MethodView):
@@ -120,38 +114,18 @@ class SignUP(MethodView):
             logger.warning(f'Signup Failed, passwords do not match: Username {username}')
             flash('Passwords do not match. Please try again.', 'error')
             return redirect(url_for('auth.signup'))
-
-        uppercase_characters = len(re.findall(r"[A-Z]", password))
-        lowercase_characters = len(re.findall(r"[a-z]", password))
-        numerical_characters = len(re.findall(r"[0-9]", password))
-        special_characters = len(re.findall(r"[!@#$%^&*()-_+<>?]", password))
         
-        if len(password) < current_app.config['MIN_PASSWORD_LENGTH'] or not all([uppercase_characters,lowercase_characters,numerical_characters,special_characters]):
+        # Password complexity check
+        if not is_password_complex(password):
             flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
             return redirect(url_for('auth.signup'))
         
-        # Generate a random UUID for the new user ID
-        user_id = uuid.uuid4()
-        # Hash the password for secure storage
-        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
-
-        # Retrieve the secure passphrase
-        secure_key = get_secure_key()
-
-        # Connect to the encrypted database (SQLCipher) using the secure key
-        with get_db_connection(secure_key) as conn:
-            c = conn.cursor()
-            try:
-                c.execute('SELECT * FROM users WHERE username = ?', (username,))
-                if c.fetchone():
-                    logger.error(f'Username already be in use')
-                    return "Username already taken, please choose another."
-                # Insert new user into the users table
-                c.execute('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)', (str(user_id), username, hashed_password))
-                conn.commit()
-            except sqlite.IntegrityError as e:
-                logger.error(f'Database Error, Username may already be in use')
-                logger.error(e)
-
-        return redirect(url_for('main.home'))
+        if add_user(username, password):
+            flash('User successfully registered.')
+            return redirect(url_for('main.home')) 
+        else:
+            logger.error(f'Username already be in use')
+            flash('Username already exists. Please choose a different one.')
+            return redirect(url_for('auth.signup'))
+        
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))

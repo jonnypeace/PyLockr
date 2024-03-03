@@ -5,7 +5,6 @@ name = "pypi"
 
 [packages]
 flask = "*"
-pysqlcipher3 = "*"
 cryptography = "*"
 html-sanitizer = "*"
 virtualenv = "*"
@@ -16,6 +15,9 @@ apscheduler = "*"
 gunicorn = "*"
 flask-limiter = "*"
 redis = "*"
+python-lsp-server = "*"
+sqlalchemy = "*"
+mariadb = "*"
 
 [dev-packages]
 ipykernel = "*"
