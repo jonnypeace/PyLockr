@@ -18,9 +18,9 @@ Base = declarative_base()
 
 # Initialize engine and session
 DB_PATH = os.environ.get('DB_PATH')
-logger.info(f'{DB_PATH=}')
+
 if DB_PATH is None:
-    raise ValueError('DB_PATH environment variable not set')
+    raise ValueError('DB_PATH environment variable not set in .env')
 
 engine = create_engine(DB_PATH, echo=True)
 Session = scoped_session(sessionmaker(bind=engine, autoflush=False))
@@ -35,7 +35,7 @@ class User(Base):
     username = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     passwords = relationship("Password", back_populates="user")
-    
+
 class Password(Base):
     __tablename__ = 'passwords'
     id = Column(Integer, primary_key=True, autoincrement=True)

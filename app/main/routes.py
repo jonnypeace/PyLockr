@@ -371,14 +371,14 @@ class Backup(BaseAuthenticatedView):
         try:
             password_entries = Session.query(Password).filter_by(user_id=user_id).all()
             # Insert a record into backup_history
+            # Prepare decrypted data for CSV
+            decrypted_data = [[entry.name, entry.username, decrypt_data(entry.encrypted_password), entry.category, decrypt_data(entry.notes)] for entry in password_entries]
             new_backup_history = BackupHistory()
             Session.add(new_backup_history)
             Session.commit()
         finally:
             Session.close()
 
-        # Prepare decrypted data for CSV
-        decrypted_data = [[entry.name, entry.username, decrypt_data(entry.encrypted_password), entry.category, decrypt_data(entry.notes)] for entry in password_entries]
 
         # Save the decrypted data to a CSV file
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')

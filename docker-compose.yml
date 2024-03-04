@@ -9,11 +9,11 @@ services:
       - "5000:5000"
     volumes:
       - ./backup:/usr/src/app/backup
+      - ./config/ssl:/usr/src/app/ssl # Encryption keys
     environment:
       - BACKUP_DIR=/usr/src/app/backup
       - SESSION_TIMEOUT=30
       - MIN_PASSWORD_LENGTH=10
-      - DB_PATH=mariadb+mariadbconnector://${MYSQL_USER}:${MYSQL_PASSWORD}@mariadb:3306/pylockrdb
     env_file:
       - .env
     depends_on:
@@ -22,23 +22,25 @@ services:
     networks:
       - pylockr-network
 
-  # scheduler:
-  #   build:
-  #     context: .
-  #     dockerfile: ./dockerfiles/Dockerfile_Scheduler
-  #   volumes:
-  #     - ./backup:/usr/src/app/backup
-  #   environment:
-  #     - BACKUP_DIR=/usr/src/app/backup
-  #     - MAX_DB_BACKUPS=42
-  #     - BACKUP_FREQUENCY=240
-  #     - RUN_SCHEDULER=true
-  #     - DB_PATH=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mariadb/pylockrdb
-  #   depends_on:
-  #     - redis
-  #     - mariadb  # Ensure the scheduler service starts after MariaDB is ready
-  #   networks:
-  #     - pylockr-network
+  scheduler:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/Dockerfile_Scheduler
+    volumes:
+      - ./backup:/usr/src/app/backup
+      - ./config/ssl:/usr/src/app/ssl # Encryption keys
+    environment:
+      - BACKUP_DIR=/usr/src/app/backup
+      - MAX_DB_BACKUPS=42
+      - BACKUP_FREQUENCY=240
+      - RUN_SCHEDULER=true
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - mariadb  # Ensure the scheduler service starts after MariaDB is ready
+    networks:
+      - pylockr-network
 
   redis:
     image: redis:alpine
@@ -49,12 +51,16 @@ services:
   mariadb:
     image: mariadb:latest
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT}  # Reusing SQLCIPHER_KEY for simplicity
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=pylockrdb
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./config/cnf:/etc/mysql/conf.d  # Custom my.cnf
+      - ./config/ssl:/etc/mysql/ssl  # SSL Encryption keys
+      - ./config/keys:/etc/mysql/encryption  # Data at Rest Encryption key
+
     networks:
       - pylockr-network
 
