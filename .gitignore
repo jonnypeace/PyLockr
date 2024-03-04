@@ -2,3 +2,5 @@ __pycache__/
 users.db
 .env
 test*
+backup/
+config/
