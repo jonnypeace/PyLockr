@@ -73,11 +73,13 @@ class UploadCSV(BaseAuthenticatedView):
             db_session.close()
 
     @staticmethod
-    def check_indexes(row):
+    def check_indexes(row: list):
         row_dict = {'name': -1, 'username': -1, 'password': -1, 'category': -1, 'notes': -1}
         # Define patterns for matching headers here as before
+        # the name regex =
+        #   Does not match user before name, but account name is allowed, or name or url are allowed.
         patterns = {
-            'name': re.compile(r'(?<!user\s)((account\s+)?\bname\b)', re.IGNORECASE),
+            'name': re.compile(r'((?<!user\s)((account\s+)?\bname\b)|\burl\b)', re.IGNORECASE),
             'username': re.compile(r'user\s*name', re.IGNORECASE),
             'password': re.compile(r'password', re.IGNORECASE),
             'category': re.compile(r'folder', re.IGNORECASE),
@@ -360,6 +362,8 @@ class Backup(BaseAuthenticatedView):
     Downloads a copy of the database locally, using data and time for name
     '''
     methods = ['GET', 'POST']
+    def get(self):
+        return render_template('backup.html', nonce=g.nonce)
     
     def post(self):    
         password = request.form.get('backupPassword')
@@ -408,7 +412,6 @@ class Backup(BaseAuthenticatedView):
 
         current_ip = get_remote_address()
         logger.info(f'Successful backup download initiated for IP {current_ip}')
-
         return send_file(archive_path, as_attachment=True, download_name=os.path.basename(archive_path))  
 
     @staticmethod
