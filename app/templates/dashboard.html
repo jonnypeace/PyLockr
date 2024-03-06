@@ -1,40 +1,22 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>PyLockr - Dashboard</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles/styles.css') }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body>
-    {% include 'header.html' %}
-    <div class="container">
-        <!-- Display Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="flash {{ category }}">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-        <h1 class="center-text">PyLockr: Dashboard</h1>
-          <br><br>
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+<h1 class="center-text">PyLockr: Dashboard</h1>
+  <br><br>
         <div class="actions center-text">
-            <!-- Link to Add Password Page -->
-            <a href="{{ url_for('main.add_password') }}"><button>Add Password</button></a>
-            <!-- Link to Retrieve Passwords -->
-            <a href="{{ url_for('main.retrieve_passwords') }}"><button>Retrieve Passwords</button></a>
-            <!-- Link to Retrieve Passwords -->
-            <a href="{{ url_for('auth.change_user_password') }}"><button>Change User Password</button></a>
+            <a href="{{ url_for('main.add_password') }}" class="button-link">Add Password</a>
+            <a href="{{ url_for('main.retrieve_passwords') }}" class="button-link">Retrieve Passwords</a>
+            <a href="{{ url_for('auth.change_user_password') }}" class="button-link">Change User Password</a>
           <br><br>
             <form id="backupForm" method="POST" action="/backup">
               <label for="backupPassword">Backup to 7zip. Enter Password:</label>
-              <input type="password" id="backupPassword" name="backupPassword" value="password-den" required>
+              <input type="password" id="backupPassword" name="backupPassword" required>
               <button type="submit">Create Backup</button>
             </form>
             {% if reminder_needed %}
             <p class="alert-error">It has been over a month since your last backup. Please consider backing up your database.</p>
               {% endif %}
-            <p class="altert-ok">Last Backup: {{ last_backup if last_backup else 'Never' }}</p>
+            <p class="alert-ok">Last Backup: {{ last_backup if last_backup else 'Never' }}</p>
           <br><br>
             <form action="{{ url_for('main.upload_csv') }}" method="POST" enctype="multipart/form-data">
               <label for="csvFile" class="custom-file-upload">Select CSV file & Upload into Database</label>
@@ -42,6 +24,5 @@
               <button type="submit">Upload</button>
             </form>
         </div>
-    </div>
-</body>
-</html>
+</div>
+{% endblock %}

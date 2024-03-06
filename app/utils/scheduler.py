@@ -101,7 +101,7 @@ def scheduler_run():
     '''
     def signal_handler(signum, frame):
         print('Received shutdown signal, stopping scheduler...')
-        scheduler.shutdown(wait=False)
+        scheduler.shutdown(wait=True)
     print('Scheduler stopped gracefully.')
     # Initialize APScheduler
     frequency = int(os.environ.get('BACKUP_FREQUENCY', 240))

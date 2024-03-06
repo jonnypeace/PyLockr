@@ -140,26 +140,6 @@ button:hover {
     background-color: #45a049;
 }
 
-
-.flash {
-    padding: 10px;
-    margin: 10px 0;
-    border: 1px solid transparent;
-    border-radius: 4px;
-}
-
-.flash.success {
-    background-color: #d4edda;
-    border-color: #c3e6cb;
-    color: #155724;
-}
-
-.flash.error {
-  background-color: red;
-  border-color: #c3e6cb;
-  color: white;
-}
-
 /* Style for the checkbox column */
 th.checkbox-header, td.checkbox-cell {
     width: 1%; /* Minimize the width of the checkbox column */
@@ -309,19 +289,49 @@ div.dts div.dataTables_scrollBody table tr:nth-child(even) {
   background-color: #121212;
 }
 
-/* styles.css */
-.alert-error {
-    color: rgb(180, 11, 11);
-}
-
-.alert-ok {
-    color: aquamarine;
-}
-
 .csv-file {
     display: none;
 }
 
 .center-text {
     text-align: center;
+}
+
+.button-link {
+    display: inline-block; /* Allows applying padding and makes the element block-like */
+    padding: 10px 20px; /* Adds space inside the link, similar to a button */
+    background-color: #4CAF50; /* Button color */
+    color: white; /* Text color */
+    text-align: center; /* Centers the text */
+    text-decoration: none; /* Removes the underline from links */
+    border-radius: 5px; /* Rounds the corners */
+    border: none; /* Removes the border */
+    cursor: pointer; /* Changes the cursor to the pointer hand */
+}
+
+.container {
+    text-align: center;
+}
+
+.alert {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    text-align: center;
+    padding: 10px 0;
+    background-color: rgba(0,0,0,0.5);
+    display: inline-block;
+    margin: 0 auto;
+    padding: 5px 10px;
+    color: #fff;
+}
+
+.alert-error {
+    color: rgb(180, 11, 11);
+}
+
+.alert-ok {
+    color: aquamarine;
 }

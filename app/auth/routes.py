@@ -35,7 +35,7 @@ class Logout(MethodView):
         Logs out and clears the session and redirects to homepage.
         '''
         session.clear()
-        flash('You have been logged out.')
+        flash('You have been logged out.', 'alert alert-ok')
         return redirect(url_for('main.home'))
 auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
@@ -55,11 +55,11 @@ class Login(MethodView):
         if user:
             session['user_id'] = user.id
             session['username'] = user.username
-            flash('Login successful.')
+            flash('Login successful.', 'alert alert-ok')
             logger.info(f'Successful login attempt from IP: {requested_ip}')
             return redirect(url_for('main.dashboard'))
         else:
-            flash('Invalid username or password.')
+            flash('Invalid username or password.', 'alert alert-error')
             logger.warning(f'Failed login attempt from IP: {requested_ip}')
             return redirect(url_for('auth.login_form'))
 
@@ -82,21 +82,21 @@ class ChangeUserPass(MethodView):
 
         # Password complexity check
         if not is_password_complex(new_password):
-            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'alert alert-error')
             return redirect(url_for('auth.change_user_password'))
 
         # New passwords match check
         if new_password != confirm_new_password:
             logger.warning(f'Passwords Did Not Match during password change: IP {requested_ip}')
-            flash('New passwords do not match.', 'error')
+            flash('New passwords do not match.', 'alert alert-error')
             return redirect(url_for('auth.change_user_password'))
 
         # Attempt to update the user's password
         if update_user_password(username, current_password, new_password):
-            flash('Password successfully updated.', 'success')
+            flash('Password successfully updated.', 'alert alert-ok')
             return redirect(url_for('main.dashboard'))
         else:
-            flash('Current password is incorrect or update failed.', 'error')
+            flash('Current password is incorrect or update failed.', 'alert alert-error')
             return redirect(url_for('auth.change_user_password'))
 
 
@@ -112,20 +112,20 @@ class SignUP(MethodView):
 
         if password != confirm_password:
             logger.warning(f'Signup Failed, passwords do not match: Username {username}')
-            flash('Passwords do not match. Please try again.', 'error')
+            flash('Passwords do not match. Please try again.', 'alert alert-error')
             return redirect(url_for('auth.signup'))
         
         # Password complexity check
         if not is_password_complex(password):
-            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'alert alert-error')
             return redirect(url_for('auth.signup'))
         
         if add_user(username, password):
-            flash('User successfully registered.')
+            flash('User successfully registered.', 'alert alert-ok')
             return redirect(url_for('main.home')) 
         else:
             logger.error(f'Username already be in use')
-            flash('Username already exists. Please choose a different one.')
+            flash('Username already exists. Please choose a different one.', 'alert alert-error')
             return redirect(url_for('auth.signup'))
         
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))

@@ -29,24 +29,24 @@ class UploadCSV(BaseAuthenticatedView):
     """
 
     def get(self):
-        flash('Please select a file to upload', 'error')
+        flash('Please select a file to upload', 'alert alert-error')
         return redirect(url_for('main.dashboard'))
 
     def post(self):
         file = request.files.get('csvFile')
         if not file or file.filename == '':
-            flash('No file selected', 'error')
+            flash('No file selected', 'alert alert-error')
             return redirect(request.url)
         
         if not self.is_valid_file(file.filename):
-            flash('Invalid file type, please upload a CSV file.', 'error')
+            flash('Invalid file type, please upload a CSV file.', 'alert alert-error')
             return redirect(request.url)
         
         try:
             self.process_file(file)
-            flash('CSV File successfully uploaded', 'success')
+            flash('CSV File successfully uploaded', 'alert alert-ok')
         except Exception as e:
-            flash(f'Error processing the file: {e}', 'error')
+            flash(f'Error processing the file: {e}', 'alert alert-error')
 
         return redirect(url_for('main.dashboard'))
 
@@ -164,7 +164,7 @@ class AddPassword(BaseAuthenticatedView):
         # Validate lengths
         if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes or len(category) > max_length_category:
             # Handle error: return an error message or redirect
-            flash('Error: Input data too long', 'error')
+            flash('Error: Input data too long', 'alert alert-error')
             return redirect(url_for('main.add_password'))
 
         # Add new password entry
@@ -181,10 +181,10 @@ class AddPassword(BaseAuthenticatedView):
         try:
             db_session.add(new_password_entry)
             db_session.commit()
-            flash('Password added successfully!', 'success')
+            flash('Password added successfully!', 'alert alert-ok')
         except Exception as e:
             db_session.rollback()
-            flash('Failed to add password.', 'error')
+            flash('Failed to add password.', 'alert alert-error')
             print(f"Error adding password: {e}")  # Log or handle the error as needed
         finally:
             db_session.close()
@@ -228,12 +228,12 @@ class DeletePassword(BaseAuthenticatedView):
             if password_entry:
                 db_session.delete(password_entry)
                 db_session.commit()
-                flash('Password entry deleted successfully.', 'success')
+                flash('Password entry deleted successfully.', 'alert alert-ok')
             else:
-                flash('Password entry not found or not authorized to delete.', 'error')
+                flash('Password entry not found or not authorized to delete.', 'alert alert-error')
         except Exception as e:
             db_session.rollback()
-            flash('Failed to delete password entry.', 'error')
+            flash('Failed to delete password entry.', 'alert alert-error')
             logger.error(f"Error deleting password: {e}")
         finally:
             db_session.close()
@@ -262,17 +262,17 @@ class DeleteMultiplePasswords(BaseAuthenticatedView):
             # Delete all selected password entries belonging to the user in one go
             db_session.query(Password).filter(Password.id.in_(selected_password_ids), Password.user_id == session['user_id']).delete(synchronize_session=False)
             db_session.commit()
-            flash('Selected password entries deleted successfully.', 'success')
+            flash('Selected password entries deleted successfully.', 'alert alert-ok')
         except SQLAlchemyError as e:  # Catch more specific database errors
             db_session.rollback()
-            flash('Failed to delete selected password entries.', 'error')
+            flash('Failed to delete selected password entries.', 'alert alert-error')
             logger.error(f"Error deleting selected passwords: {e}")
         finally:
             db_session.close()
 
         current_ip = get_remote_address()
         logger.info(f'user successfully deleted {len(selected_passwords)} passwords: IP {current_ip}')
-        flash(f'Deleted {len(selected_passwords)} passwords.', 'success')
+        flash(f'Deleted {len(selected_passwords)} passwords.', 'alert alert-ok')
 
         return redirect(url_for('main.retrieve_passwords'))
 
@@ -288,9 +288,9 @@ class EditPassword(BaseAuthenticatedView):
             decrypted_password = decrypt_data(password_entry.encrypted_password)
             decrypted_notes = decrypt_data(password_entry.notes)
             return render_template('edit_password.html', name=password_entry.name, username=password_entry.username, password=decrypted_password,
-                                   notes=decrypted_notes, nonce=g.nonce) # password_data=password_entry, don't think i need this.
+                                   notes=decrypted_notes, category=password_entry.category, nonce=g.nonce) # password_data=password_entry, don't think i need this.
         else:
-            flash('Password not found or access denied', 'error')
+            flash('Password not found or access denied', 'alert alert-error')
             return redirect(url_for('main.retrieve_passwords'))
 
     def post(self, password_id):
@@ -307,7 +307,7 @@ class EditPassword(BaseAuthenticatedView):
         max_length_notes = 4096
 
         if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes or len(category) > max_length_category:
-            flash("Error: Input data too long.", "error")
+            flash("Error: Input data too long.", "alert alert-error")
             return redirect(url_for('main.edit_password', password_id=password_id))
 
         try:
@@ -319,12 +319,12 @@ class EditPassword(BaseAuthenticatedView):
                 password_entry.category = category
                 password_entry.notes = encrypted_notes
                 Session.commit()
-                flash('Password entry updated successfully.', 'success')
+                flash('Password entry updated successfully.', 'alert alert-ok')
             else:
-                flash('Password entry not found.', 'error')
+                flash('Password entry not found.', 'alert alert-error')
         except IntegrityError as e:
             Session.rollback()
-            flash('Failed to update password entry.', 'error')
+            flash('Failed to update password entry.', 'alert alert-error')
             current_app.logger.error(f"Error updating password: {e}")
         finally:
             Session.remove()
@@ -364,7 +364,7 @@ class Backup(BaseAuthenticatedView):
     def post(self):    
         password = request.form.get('backupPassword')
         if not password:
-            flash('Password is required for backup.', 'error')
+            flash('Password is required for backup.', 'alert alert-error')
             return redirect(url_for('backup'))
 
         user_id = session['user_id']  # Ensure flask_session is imported correctly
