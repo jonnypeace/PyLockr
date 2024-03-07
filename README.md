@@ -7,7 +7,7 @@ A simple password manager written mostly in python using the Flask Library. PyLo
 Some development packages to install
 
 ```bash
-sudo pacman -S base-devel sqlcipher python-pip python-virtualenv
+sudo pacman -S base-devel python-pip python-virtualenv
 ```
 
 At this point, I use vscode and use a ctrl+p and search for env to set up a virtual environment, but I believe the same can be achieved from the terminal...
@@ -24,18 +24,54 @@ pip install -r requirements.txt
 ```
 
 
-This will install python-dotenv, so i would recommend setting up a .env file which will also be used for docker builds.
+I would recommend setting up a .env file which will also be used for docker builds, it's also quite a practical approach for this type of environment.
 
 Example of the .env file
 
 ```bash
-APP_SECRET_KEY='opasajcoencoabvoabvrivnrinvfivnslikvnf'
-SQLCIPHER_KEY='ExB1KmYIeMNJJ40LsoG6tZlftmUX7YzAehWj/f9MzfY='
-FERNET_KEY='TcUTkZN-fPkS1OqVYyG8BjnsIaQWIasDSUwZbgmR5N4='
-REDIS_PASSWORD='cjsdbnjkcbsdkjvcbdvsvjbdvsdjblvdjbsjdb'
+APP_SECRET_KEY='191d8e6d72233434418d31088664018e1af501df9b5058d189ea2a8c2d1187ac'
+
+# Used to encrypt data before entering to DB
+FERNET_KEY='3_MJgj_CtyH0-nXcAHzIElI1ceQ_9kR_6pu8bGzRnG0='
+
+# Used for redis, which keeps track of rate limiting
+REDIS_PASSWORD='tU_6sT!RCugPA:ADRU:V%sT3y50k4wf9'
+
+# Big long root password for mariadb
+MYSQL_ROOT='gc8_fFc%-_nvXq#h4ZX-0_y-l^1m8boI'
+
+# mariadb user password
+MYSQL_PASSWORD='rFCVse:u9InaOxoOCkinVopRvuf5OrwY'
+
+# GPD passphrase for symmetric encryption of the mariadb backups
+GPG_PASSPHRASE='9YbODuLQT#DrbZ-F&KQC-UnyCaptFOf#'
+
+
+MYSQL_USER='username'
+
+# Location for the mariadb configs for ssl network communication, encryption key, and custom config
+DB_KEY_DIR='config/keys'
+DB_CNF_DIR='config/cnf'
+DB_SSL_DIR='config/ssl'
+
+# more database config
+MYSQL_DB=pylockrdb
+MYSQL_HOST=mariadb
+MYSQL_PORT=3306
+
+# SSL Configuration
+SSL_CA=/usr/src/app/ssl/ca-cert.pem
+SSL_CERT=/usr/src/app/ssl/client-cert.pem
+SSL_KEY=/usr/src/app/ssl/client-key.pem
+
+# Database connection string with SSL parameters
+DB_PATH="mariadb+mariadbconnector://${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB}?ssl_ca=${SSL_CA}&ssl_cert=${SSL_CERT}&ssl_key=${SSL_KEY}"
+
 ```
 
 Run the generate_key.py file, which will provide you with some Keys.
+
+There is also a setup.sh bash script which will generate the ssl keys in a path called config in the root directory of the app.
 
 ## Docker Builds
 
@@ -76,86 +112,130 @@ docker-compose up
 
 This web app has been designed to do several things, mostly automatically where possible.
 
-We set up 3 services and a network to keep the web app services segragated from any other docker instances. In my docker-compose, you will see that I have tried my best to limit each services capability. The only ports exposed will be on the web app itself.
+We set up 4 services and a network to keep the web app services segragated from any other docker instances. In my docker-compose, you will see that I have tried my best to limit each services capability. The only ports exposed will be on the web app itself. In a future version, i may provide an option to expose the mariadb ports so we can tap into the database with a desktop script, using wofi or demnu.
 
-Since this webapp uses SQLCipher, the entire database will be encrypted. The authentican password is hashed, the username is sanitized. All passwords and notes entered into the database go through a second phase of encryption, which is what the FERNET_KEY is for.
+Since this webapp will be using Key Encryption for Encryption at rest, the entire database will be encrypted. I have supplied a script to generate the keys and SSL certs, and config so mariadb can be safely communicated with over a network. The user authentication password is hashed, the username is sanitized. All passwords and notes entered into the database go through a second phase of encryption, which is what the FERNET_KEY is for.
+
 
 ```yaml
+
 services:
   web:
     build:
       context: .
-      dockerfile: ./dockerfiles/Dockerfile # dockerfile location
+      dockerfile: ./dockerfiles/Dockerfile
     ports:
-      - "5000:5000" # expose on these ports
+      - "5000:5000"
     volumes:
-      - ./database:/usr/src/app/database # database available outside container
-      - ./backup:/usr/src/app/backup # same for backup
+      - ./backup:/usr/src/app/backup
+      - ./config/ssl:/usr/src/app/ssl # Encryption keys
     environment:
-      - BACKUP_DIR=/usr/src/app/backup # 
-      - DB_PATH=/usr/src/app/database # paths for database
-      - SESSION_TIMEOUT=30 # This is when the webapp will timeout the login session
-      - MIN_PASSWORD_LENGTH=10 # adjust to suit your needs. This is your authentication password
+      - BACKUP_DIR=/usr/src/app/backup
+      - SESSION_TIMEOUT=30
+      - MIN_PASSWORD_LENGTH=10
     env_file:
-      - .env # Keys in this file
+      - .env
     depends_on:
-      - redis  # Ensure the web service starts after Redis. Used for rate limiting
+      - redis
+      - mariadb  # Ensure the web service starts after MariaDB is ready
     networks:
-      - pylockr-network # isolate in own network
+      - pylockr-network
 
 ```
 
 
-Since we're using SQLCipher, i wanted to utilize the clean backup utility provided, and so hence, we have a scheduler service. This service will create backups on a schedule of your choosing. You will see the environment variables set in the docker-compose file.
+Since we're using maraidb, i wanted to utilize a clean backup utility, and so hence, we have a scheduler service. This service will create backups on a schedule of your choosing. You will see the environment variables set in the docker-compose file. The purpose of the GPG_PASSPHRASE in the .env, is so that you end up with gpg encrypted backups. Again, highlighting the importance of keeping your keys/passwords somewhere safe.
+
+The scheduler needs access to the ssl encryption keys for safe communication to the mariadb server.
+
+This example keeps backups for a week (42 backups, backup every 240mins)
 
 ```yaml
+
   scheduler:
     build:
       context: .
-      dockerfile: ./dockerfiles/Dockerfile_Scheduler # Has it's own dockerfile
+      dockerfile: ./dockerfiles/Dockerfile_Scheduler
     volumes:
-      - ./database:/usr/src/app/database # access to the database outside the app
-      - ./backup:/usr/src/app/backup # I would probably mount a network share with redundancy for the backups
+      - ./backup:/usr/src/app/backup
+      - ./config/ssl:/usr/src/app/ssl # Encryption keys
     environment:
-      - BACKUP_DIR=/usr/src/app/backup # databases will be backed up to this directory
-      - DB_PATH=/usr/src/app/database # location of the database
-      - MAX_DB_BACKUPS=42 # will retain 42 backups
-      - BACKUP_FREQUENCY=240 # will schedule a backup every 240 minutes (keeping 42 backups at 240mins = 1 week worth of backups)
-      - SQLCIPHER_KEY=${SQLCIPHER_KEY} # encryption key for the database
+      - BACKUP_DIR=/usr/src/app/backup
+      - MAX_DB_BACKUPS=42
+      - BACKUP_FREQUENCY=240
+      - RUN_SCHEDULER=true
+    env_file:
+      - .env
     depends_on:
-      - redis  # Ensure the scheduler service starts after Redis. Redis is used for rate limiting.
+      - redis
+      - mariadb  # Ensure the scheduler service starts after MariaDB is ready
     networks:
-      - pylockr-network # isolate with webapp
+      - pylockr-network
 ```
 
 ## Redis
 
-There's not a lot to say about the use of this. Except, when you start your docker app, the logs will complain about setting your overcommit memory to 1. This is in the documentation from Redis, and has something to do with forks, and the children unable to sometimes get the memory they need. For myself, I'll be setting this up in a virtual machine, and will likely limit the memory in a redis config, but it will also have allocated virtual machine memory rather than playing with the host system. Not a requirement, but a step i would probably choose to run this the recommended way.
+When you start your docker app, the logs will complain about setting your overcommit memory to 1. This is in the documentation from Redis, and has something to do with forks, and the children unable to sometimes get the memory they need. Consider setting this up in a virtual machine with the overcommit memory set to 1. This will ensure the host system doesn't run into memory issues. Not a requirement, but a step i would probably choose to run this the recommended way.
+
 
 ```yaml
+
   redis:
     image: redis:alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD} # A little bit of security by forcing a password
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     networks:
-      - pylockr-network # isolated in own network
+      - pylockr-network
+
+```
+
+## MariaDB
+
+MariaDB is where your user authentication and password management data is stored. The volume at the bottom ensures persistent storage between docker restarts, and rebuilds. To clear the volume, you can
+
+```bash
+docker-compose down -v
+```
+
+
+I think most of the environment variables set here are quite clear. You can see the config directory after you've run setup.sh, will be mapped to /etc/sql locations for mariadb to read from.
+
+```bash
+
+  mariadb:
+    image: mariadb:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=pylockrdb
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./config/cnf:/etc/mysql/conf.d  # Custom my.cnf
+      - ./config/ssl:/etc/mysql/ssl  # SSL Encryption keys
+      - ./config/keys:/etc/mysql/encryption  # Data at Rest Encryption key
+
+    networks:
+      - pylockr-network
 
 networks:
   pylockr-network:
-    driver: bridge # The isolated network
+    driver: bridge
+
+volumes:
+  mariadb_data: {}
+
 ```
+
 
 ## Dockerfiles
 
 The main app dockerfile. I think all the comments and code are self explanatory.
 
 ```dockerfile
+
 FROM python:3.11
 
-# Install system dependencies required for pysqlcipher3
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libsqlcipher-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and switch to it
 RUN adduser --disabled-password --gecos '' appuser
@@ -178,22 +258,22 @@ EXPOSE 5000
 # Use Entrypoint for shells
 
 ENTRYPOINT ["./entry.sh"]
+
 ```
 
 Scheduler dockerfile. The main difference here are...
 
-* Installation of sqlcipher. Required to use the commandline for cleanly backing up.
+* Installation of mariadb client. Required to use the commandline for cleanly backing up.
 * Copies only the required files necessary
 * No exposing
 
 ```dockerfile
+
 FROM python:3.11
 
-# Install system dependencies required for pysqlcipher3
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libsqlcipher-dev \
-    sqlcipher \
+# Install system dependencies required for mariadb
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mariadb-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and switch to it
@@ -205,11 +285,10 @@ WORKDIR /usr/src/app
 # Copy the application code into the container
 COPY ./app/utils/scheduler.py /usr/src/app/app/utils/scheduler.py
 COPY ./app/utils/pylockr_logging.py /usr/src/app/app/utils/pylockr_logging.py
-COPY ./requirements.txt /usr/src/app/ 
 COPY ./scheduler_entry.sh /usr/src/app/
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install APScheduler 
 
 # Add local user bin directory to PATH
 ENV PATH="/home/appuser/.local/bin:${PATH}"
@@ -223,11 +302,11 @@ ENTRYPOINT ["./scheduler_entry.sh"]
 
 I think navigating around is self explanatory. There are not too many webpages, and not too many bells and whistles. Features included are...
 
-* Capable of importing csv password lists from vaultwarden and Brave browser (guessing chrome as well?) 
-* The table uses a fuzzy finder, which is quite a convenient method for searching using the search bar. I have included categories for this purpose, so you can search for 'email' for instance.
+* Capable of importing csv password lists from vaultwarden, firefox and Brave browser (guessing chrome as well?) 
+* The table has a useful search box, which is quite a convenient method for searching using the search bar. I have included categories for this purpose, so you can search for 'email' for instance.
 * Automatic backups using the scheduling service, as detailed above
 * Sanitizing, hashing, double encyption.
-* The retrieved passwords table never see's your passwords. The only method of returning your password is while editing, or with the copy to clipboard.
+* The retrieved passwords datatable never see's your passwords. The only method of returning your password is while editing, or with the copy to clipboard.
 * Download your user passwords. If you decide to move along, or just want a backup, this feature is available. I decided to make sure your passwords were safe by encrypting the CSV with AES-256, in a 7zip archive.
 
 Features i'd like to implement...
@@ -238,7 +317,6 @@ Features i'd like to implement...
 * Include an NGINX reverse proxy setup, with some security protocols
 * Apply more web app security
 * A frontpage png that doesn't mention my name...
-* Automatic Password Generation
 
 If there are features you'd like to see, i welcome feedback and contributions.
 
@@ -246,7 +324,7 @@ Limitations...
 
 * Testing. I'm one person, learning as I go.
 * No mandatory requirement for HTTPS, but I would highly recommend using HTTPS.
-* Uncertain how imports from other password managers will work. Only tested with Brave browser and Vaultwarden
+* Uncertain how imports from other password managers will work. Only tested with Brave browser, firefox and Vaultwarden
 * Documentation. This might take some time to get right, but it is a simple web app, and hopefully i've explained most of it.
 * No 2FA. I've been on the fence with this, but it's probably needed. I have planned to use this behind wireguard, in isolation, behind reverse proxies etc etc. Not everyone will do this though, so if you really want this let me know.
 
