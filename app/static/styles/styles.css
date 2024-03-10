@@ -281,7 +281,7 @@ div.dts div.dataTables_scrollBody table tr:hover {
 /* Style for alternating row colors for better readability in dark theme */
 div.dts div.dt-scroll-body table tr:nth-child(odd),
 div.dts div.dataTables_scrollBody table tr:nth-child(odd) {
-  background-color: #181818; 
+  background-color: #181818;
 }
 
 div.dts div.dt-scroll-body table tr:nth-child(even),
@@ -355,3 +355,20 @@ div.dts div.dataTables_scrollBody table tr:nth-child(even) {
     transition: opacity 0.5s ease-in-out;
 }
 
+div.dts div.dt-scroll-body table, div.dts div.dataTables_scrollBody table {
+  background-color: #0e1d04 !important;
+  z-index: 2;
+}
+
+
+table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control::before {
+  margin-right: .5em;
+  display: inline-block;
+  box-sizing: border-box;
+  content: "";
+  border-top: 5px solid black !important;
+  border-left: 10px solid white !important;
+  border-bottom: 5px solid black !important;
+  border-right: 0px solid white !important;
+  margin-right: 1em !important;
+}
