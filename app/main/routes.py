@@ -82,7 +82,7 @@ class UploadCSV(BaseAuthenticatedView):
             'name': re.compile(r'((?<!user\s)((account\s+)?\bname\b)|\burl\b)', re.IGNORECASE),
             'username': re.compile(r'user\s*name', re.IGNORECASE),
             'password': re.compile(r'password', re.IGNORECASE),
-            'category': re.compile(r'folder', re.IGNORECASE),
+            'category': re.compile(r'\bfolder\b|\bcategory\b', re.IGNORECASE),
             'notes': re.compile(r'notes', re.IGNORECASE),
         }
         for num, item in enumerate(row):
@@ -93,16 +93,12 @@ class UploadCSV(BaseAuthenticatedView):
         return row_dict
 
     def insert_password_row(self, db_session, row, row_index_dict):
-        category = sanitizer.sanitize(row[row_index_dict.get('category')]) if row_index_dict.get('category') != -1 else ''
-        if '/' in category:
-            category = category.split('/')[1] if category != '' else ''
-
         password_entry = Password(
             user_id=session['user_id'],
             name=sanitizer.sanitize(row[row_index_dict['name']]) if row_index_dict['name'] != -1 else '',
             username=sanitizer.sanitize(row[row_index_dict['username']]) if row_index_dict['username'] != -1 else '',
             encrypted_password=encrypt_data(row[row_index_dict['password']]) if row_index_dict['password'] != -1 else encrypt_data(''),
-            category=category,
+            category=sanitizer.sanitize(row[row_index_dict.get('category')]) if row_index_dict.get('category') != -1 else '',
             notes=encrypt_data(row[row_index_dict['notes']]) if row_index_dict['notes'] != -1 else encrypt_data('')
         )
         db_session.add(password_entry)
@@ -204,7 +200,7 @@ class RetrievePasswords(BaseAuthenticatedView):
         db_session = Session()
         # Retrieve all entries for the logged-in user, excluding the actual password for security
         try:
-            password_entries = db_session.query(Password.id, Password.name, Password.username, Password.category).filter_by(user_id=session['user_id']).all()
+            password_entries = db_session.query(Password.id, Password.name, Password.username, Password.encrypted_password, Password.category).filter_by(user_id=session['user_id']).all()
         finally:
             db_session.close()
         # Prepare data for display, mask the password
