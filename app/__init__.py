@@ -50,8 +50,13 @@ def create_app():
         g.csp_policy = csp_policy.strip()  # Use strip() to remove leading/trailing whitespace
 
     @app.after_request
-    def apply_csp(response):
+    def apply_security_headers(response):
+        # CSP header
         response.headers['Content-Security-Policy'] = g.csp_policy
+        # Clickjacking Protection
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'  # Or 'DENY' if you prefer
+        # Prevent MIME type sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
 
     @app.route('/csp-report-endpoint', methods=['POST'])
