@@ -188,7 +188,7 @@ input[type='checkbox'] {
 
 .delete-selected button {
     padding: 5px 10px;
-    background-color: #f44336;
+    background-color: #730308;
     color: white;
     border: none;
     border-radius: 4px;
@@ -390,6 +390,8 @@ div.dts div.dt-scroll-body table, div.dts div.dataTables_scrollBody table {
   z-index: 2;
 }
 
+.dt-row-hover
+
 
 table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control::before {
   margin-right: .5em;
@@ -419,4 +421,9 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, tabl
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
+}
+
+table.dataTable tbody tr:hover {
+    /* background-color: #411245 !important; */
+    background-color: #730308 !important;
 }
