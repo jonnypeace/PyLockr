@@ -5,6 +5,7 @@
         <img src="{{ url_for('static', filename='logo_dark.png') }}" alt="Jonny's Den Logo">
     </div>
     <form action="/signup" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="text" name="username" placeholder="Username" required>
         <input type="password" name="password" placeholder="Password" minlength="{{ min_password_length }}" required>
         <input type="password" name="confirm_password" minlength="{{ min_password_length }}"
