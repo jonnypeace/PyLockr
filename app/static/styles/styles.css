@@ -91,10 +91,40 @@ h1 {
     cursor: pointer;
     font-size: 16px;
     text-align: center;
+    justify-content: space-between;
+    align-items: center;
+    display: inline-block;
+}
+
+.actions-new {
+    display: flex;
+    justify-content: flex-start; /* Align items to the start */
+    width: 100%;
+}
+
+.left-buttons, .right-buttons {
+    display: flex;
+    margin: 5px;
+    border: 8px;
+}
+
+.button-spacing {
+    margin-right: 6px; /* Adjust the value as needed for your design */
+}
+
+.right-buttons {
+    margin-left: auto; /* Automatically pushes the right-buttons to the end */
 }
 
 .actions button:hover, .actions a button:hover {
     background-color: #45a049;
+}
+
+/* Mobile-first styles */
+@media (max-width: 768px) {
+    .right-buttons {
+    	display: none !important;
+    }
 }
 
 button {
@@ -371,4 +401,22 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, tabl
   border-bottom: 5px solid black !important;
   border-right: 0px solid white !important;
   margin-right: 1em !important;
+}
+
+.delete-btn {
+    padding: 5px 10px !important;
+    border: none !important; /* Remove border */
+    margin: 0 !important; /* Adjust margin as needed */
+    width: auto !important; /* Adjust as needed, or set to 'auto' */
+    height: auto !important; /* Adjust as needed, or set to 'auto' */
+    font-size: 0.8rem !important;
+    box-sizing: border-box !important;
+    display: inline-block !important;
+}
+
+.del-form {
+    display: inline-block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }
