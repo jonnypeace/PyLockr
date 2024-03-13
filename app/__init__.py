@@ -43,7 +43,7 @@ def create_app():
             "object-src 'none';"
             "img-src 'self';"
             "report-uri /csp-report-endpoint;"
-         #   f'report-to "{report_to_json}"'
+            f'report-to "{report_to_json}"'
             "connect-src 'self';"
         )
         
