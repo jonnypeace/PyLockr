@@ -13,7 +13,6 @@ def generate_secret_key(length=24):
     return secrets.token_hex(length)
 
 def generate_keys():
-    # Example usage:
     fernet_key = Fernet.generate_key()
     # Decode the key to convert from bytes to string
     fernet_decoded_key = fernet_key.decode()
