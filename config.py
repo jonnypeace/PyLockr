@@ -22,3 +22,11 @@ class Config:
         CIPHER_SUITE = Fernet(FERNET_KEY)
     else:
         raise ValueError("No FERNET_KEY found in environment variables.")
+
+    secure_cookies =  os.environ.get('SECURE_COOKIE_HTTPS', 'False')
+
+    # Convert the string to a boolean
+    SESSION_COOKIE_SECURE = secure_cookies.lower() in ['true', '1']
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'  # or 'Strict'
+
