@@ -57,23 +57,24 @@ class Login(MethodView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('login'))
+            return redirect(url_for('auth.login'))
         
         username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']
         
         requested_ip = get_remote_address()
         user = authenticate_user(username, password)
-        if user:
-            session['user_id'] = user.id
-            session['username'] = user.username
-            flash('Login successful.', 'alert alert-ok')
-            logger.info(f'Successful login attempt from IP: {requested_ip}')
-            return redirect(url_for('main.dashboard'))
-        else:
+        try:
+            if user:
+                session['user_id'] = user.id
+                session['username'] = user.username
+                flash('Login successful.', 'alert alert-ok')
+                logger.info(f'Successful login attempt from IP: {requested_ip}')
+                return redirect(url_for('main.dashboard'))
+        except Exception as e:
             flash('Invalid username or password.', 'alert alert-error')
-            logger.warning(f'Failed login attempt from IP: {requested_ip}')
-            return redirect(url_for('auth.login_form'))
+            logger.error(f'Failed login attempt from IP: {requested_ip}\n{e}')
+            return redirect(url_for('auth.login'))
 
 auth.add_url_rule('/login', view_func=Login.as_view('login'))
 
@@ -94,7 +95,7 @@ class ChangeUserPass(MethodView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('change_user_password'))
+            return redirect(url_for('auth.change_user_password'))
         
         current_password = request.form['current_password']
         new_password = request.form['new_password']
@@ -114,11 +115,13 @@ class ChangeUserPass(MethodView):
             return redirect(url_for('auth.change_user_password'))
 
         # Attempt to update the user's password
-        if update_user_password(username, current_password, new_password):
-            flash('Password successfully updated.', 'alert alert-ok')
-            return redirect(url_for('main.dashboard'))
-        else:
+        try:
+            if update_user_password(username, current_password, new_password):
+                flash('Password successfully updated.', 'alert alert-ok')
+                return redirect(url_for('main.dashboard'))
+        except Exception as e:
             flash('Current password is incorrect or update failed.', 'alert alert-error')
+            logger.error(f'Username/Password update failed.\n{e}')
             return redirect(url_for('auth.change_user_password'))
 
 
@@ -136,7 +139,7 @@ class SignUP(MethodView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('signup'))
+            return redirect(url_for('auth.signup'))
         
         username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']
@@ -151,12 +154,13 @@ class SignUP(MethodView):
         if not is_password_complex(password):
             flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'alert alert-error')
             return redirect(url_for('auth.signup'))
-        
-        if add_user(username, password):
-            flash('User successfully registered.', 'alert alert-ok')
-            return redirect(url_for('main.home')) 
-        else:
-            logger.error(f'Username already be in use')
+
+        try:
+            if add_user(username, password):
+                flash('User successfully registered.', 'alert alert-ok')
+                return redirect(url_for('main.home'))
+        except Exception as e:
+            logger.error(f'Signup unsuccessful, username possibly in use, error:\n{e}')
             flash('Username already exists. Please choose a different one.', 'alert alert-error')
             return redirect(url_for('auth.signup'))
         
