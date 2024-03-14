@@ -38,16 +38,16 @@ class UploadCSV(BaseAuthenticatedView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('dashboard'))
-        
+            return redirect(url_for('main.dashboard'))
+
         file = request.files.get('csvFile')
         if not file or file.filename == '':
             flash('No file selected', 'alert alert-error')
-            return redirect(request.url)
+            return redirect(url_for('main.dashboard'))
         
         if not self.is_valid_file(file.filename):
             flash('Invalid file type, please upload a CSV file.', 'alert alert-error')
-            return redirect(request.url)
+            return redirect(url_for('main.dashboard'))
         
         try:
             self.process_file(file)
@@ -136,7 +136,8 @@ class Dashboard(BaseAuthenticatedView):
         session['csrf_token'] = csrf_token
         # Query the database to retrieve the last backup date
         try:
-            last_backup = Session.query(func.max(BackupHistory.backup_date)).scalar()
+            last_backup_query = Session.query(func.max(BackupHistory.backup_date)).filter(BackupHistory.user_id == session['user_id'])
+            last_backup = last_backup_query.scalar()
         finally:
             Session.close()
         # Check if the last backup was more than a month ago
@@ -168,7 +169,7 @@ class AddPassword(BaseAuthenticatedView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('add_password'))
+            return redirect(url_for('main.add_password'))
         
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
@@ -206,7 +207,7 @@ class AddPassword(BaseAuthenticatedView):
         except Exception as e:
             db_session.rollback()
             flash('Failed to add password.', 'alert alert-error')
-            print(f"Error adding password: {e}")  # Log or handle the error as needed
+            logger.error(f"Error adding password: {e}")  # Log or handle the error as needed
         finally:
             db_session.close()
 
@@ -250,7 +251,7 @@ class DeletePassword(BaseAuthenticatedView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('retrieve_passwords'))
+            return redirect(url_for('main.retrieve_passwords'))
         db_session = Session()
         try:
             # Fetch the password entry to be deleted
@@ -284,7 +285,7 @@ class DeleteMultiplePasswords(BaseAuthenticatedView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('retrieve_passwords'))
+            return redirect(url_for('main.retrieve_passwords'))
         
         db_session = Session()
         # Get the list of selected password IDs
@@ -336,7 +337,7 @@ class EditPassword(BaseAuthenticatedView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('edit_password'))
+            return redirect(url_for('main.edit_password'))
         
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
@@ -419,20 +420,21 @@ class Backup(BaseAuthenticatedView):
         
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard'))
         
         password = request.form.get('backupPassword')
         if not password:
             flash('Password is required for backup.', 'alert alert-error')
-            return redirect(url_for('backup'))
+            return redirect(url_for('main.dashboard'))
 
         user_id = session['user_id']  # Ensure flask_session is imported correctly
+
         try:
             password_entries = Session.query(Password).filter_by(user_id=user_id).all()
             # Insert a record into backup_history
             # Prepare decrypted data for CSV
             decrypted_data = [[entry.name, entry.username, decrypt_data(entry.encrypted_password), entry.category, decrypt_data(entry.notes)] for entry in password_entries]
-            new_backup_history = BackupHistory()
+            new_backup_history = BackupHistory(user_id=user_id)  # Include user_id here
             Session.add(new_backup_history)
             Session.commit()
         finally:
