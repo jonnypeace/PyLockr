@@ -35,6 +35,7 @@ class User(Base):
     username = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     passwords = relationship("Password", back_populates="user")
+    backup_history = relationship("BackupHistory", back_populates="user")
 
 class Password(Base):
     __tablename__ = 'passwords'
@@ -51,6 +52,8 @@ class BackupHistory(Base):
     __tablename__ = 'backup_history'
     id = Column(Integer, primary_key=True)
     backup_date = Column(TIMESTAMP, default=func.current_timestamp())
+    user_id = Column(String(255), ForeignKey('users.id'), nullable=False)
+    user = relationship("User", back_populates="backup_history")  # This establishes a relationship with the User model
 
 init_db()
 
