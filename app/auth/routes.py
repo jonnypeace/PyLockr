@@ -42,22 +42,14 @@ auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 class Login(MethodView):
     decorators = [limiter.limit("5 per minute")]
     def get(self):
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
         # Render the template as usual
-        return render_template('login.html', csrf_token=csrf_token)
+        return render_template('login.html')
 
     def post(self):
         '''
         Logs into website and starts a session.
         Rate limited, 5 per minute.
         '''
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('auth.login'))
         
         username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']
@@ -84,18 +76,10 @@ class ChangeUserPass(MethodView):
     Default minimum password length is 12.
     '''
     def get(self):
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
         # Render the template as usual
-        return render_template('change_user_password.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'], csrf_token=csrf_token)
+        return render_template('change_user_password.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
 
     def post(self):
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('auth.change_user_password'))
         
         current_password = request.form['current_password']
         new_password = request.form['new_password']
@@ -129,17 +113,9 @@ auth.add_url_rule('/change_user_password', view_func=ChangeUserPass.as_view('cha
 
 class SignUP(MethodView):
     def get(self):
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
-        return render_template('signup.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'], csrf_token=csrf_token)
+        return render_template('signup.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
     
     def post(self):
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('auth.signup'))
         
         username = sanitizer.sanitize(request.form['username'])
         password = request.form['password']

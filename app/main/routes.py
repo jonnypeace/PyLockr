@@ -34,11 +34,6 @@ class UploadCSV(BaseAuthenticatedView):
         return redirect(url_for('main.dashboard'))
 
     def post(self):
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('main.dashboard'))
 
         file = request.files.get('csvFile')
         if not file or file.filename == '':
@@ -114,11 +109,7 @@ main.add_url_rule('/upload_csv', view_func=UploadCSV.as_view('upload_csv'))
 
 class Home(MethodView):
     def get(self):
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
-        # Render the template as usual
-        content = render_template('login.html', csrf_token=csrf_token)
+        content = render_template('login.html')
         # Create a response object from the rendered template
         response = make_response(content)
         return response
@@ -131,9 +122,6 @@ class Dashboard(BaseAuthenticatedView):
         Dashboard route. Redirects and logs you out if session times out.
         Queries database to retrieve the last time the database was downloaded/backed up.
         '''
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
         # Query the database to retrieve the last backup date
         try:
             last_backup_query = Session.query(func.max(BackupHistory.backup_date)).filter(BackupHistory.user_id == session['user_id'])
@@ -148,7 +136,7 @@ class Dashboard(BaseAuthenticatedView):
             if datetime.now() - last_backup > timedelta(days=30):
                 reminder_needed = True
 
-        return render_template('dashboard.html', reminder_needed=reminder_needed, last_backup=last_backup, csrf_token=csrf_token)
+        return render_template('dashboard.html', reminder_needed=reminder_needed, last_backup=last_backup)
 
 main.add_url_rule('/dashboard', view_func=Dashboard.as_view('dashboard'))
 
@@ -159,17 +147,8 @@ class AddPassword(BaseAuthenticatedView):
     Username and Name Entries are sanaitized, to avoid sql injection
     '''
     def get(self):
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
-        return render_template('add_password.html', nonce=g.nonce, csrf_token=csrf_token)
+        return render_template('add_password.html', nonce=g.nonce)
     def post(self):
-        
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('main.add_password'))
         
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
@@ -221,10 +200,6 @@ class RetrievePasswords(BaseAuthenticatedView):
         Retrieve passwords route for the password manager table, which uses jQuery DataTables to sort entries.
         Passwords are masked in the DataTables view.
         '''
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
-
         db_session = Session()
         # Retrieve all entries for the logged-in user, excluding the actual password for security
         try:
@@ -237,7 +212,7 @@ class RetrievePasswords(BaseAuthenticatedView):
             for entry in password_entries
         ]
 
-        return render_template('retrieve_passwords.html', passwords=vault_data, nonce=g.nonce, csrf_token=csrf_token)
+        return render_template('retrieve_passwords.html', passwords=vault_data, nonce=g.nonce)
     
 main.add_url_rule('/retrieve_passwords', view_func=RetrievePasswords.as_view('retrieve_passwords'))
 
@@ -247,11 +222,6 @@ class DeletePassword(BaseAuthenticatedView):
         '''
         Delete individual passwords.
         '''
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('main.retrieve_passwords'))
         db_session = Session()
         try:
             # Fetch the password entry to be deleted
@@ -281,11 +251,6 @@ class DeleteMultiplePasswords(BaseAuthenticatedView):
         '''
         Multi Select password entries for deletion
         '''
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('main.retrieve_passwords'))
         
         db_session = Session()
         # Get the list of selected password IDs
@@ -316,10 +281,6 @@ main.add_url_rule('/delete_multiple_passwords', view_func=DeleteMultiplePassword
 
 class EditPassword(BaseAuthenticatedView):
     def get(self, password_id):
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
-
         # Fetch the password entry to be edited
         password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
         
@@ -327,17 +288,12 @@ class EditPassword(BaseAuthenticatedView):
             decrypted_password = decrypt_data(password_entry.encrypted_password)
             decrypted_notes = decrypt_data(password_entry.notes)
             return render_template('edit_password.html', name=password_entry.name, username=password_entry.username, password=decrypted_password,
-                                   notes=decrypted_notes, category=password_entry.category, nonce=g.nonce, csrf_token=csrf_token) # password_data=password_entry, don't think i need this.
+                                   notes=decrypted_notes, category=password_entry.category, nonce=g.nonce) # password_data=password_entry, don't think i need this.
         else:
             flash('Password not found or access denied', 'alert alert-error')
             return redirect(url_for('main.retrieve_passwords'))
 
     def post(self, password_id):
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('main.edit_password'))
         
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
@@ -410,17 +366,9 @@ class Backup(BaseAuthenticatedView):
     '''
     methods = ['GET', 'POST']
     def get(self):
-        # Generate a CSRF token
-        csrf_token = secrets.token_hex(16)
-        session['csrf_token'] = csrf_token
-        return render_template('backup.html', nonce=g.nonce, csrf_token=csrf_token)
+        return render_template('backup.html', nonce=g.nonce)
     
     def post(self):    
-        submitted_token = request.form.get('csrf_token')
-        
-        if not submitted_token or submitted_token != session.get('csrf_token'):
-            flash('CSRF token is invalid.', 'alert alert-error')
-            return redirect(url_for('main.dashboard'))
         
         password = request.form.get('backupPassword')
         if not password:
