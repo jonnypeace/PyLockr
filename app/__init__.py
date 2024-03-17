@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from flask import Flask, g,request
+from flask import Flask, g,request,session,abort
 from .main import main as main_blueprint
 from .auth import auth as auth_blueprint
 from config import Config
@@ -45,6 +45,8 @@ def create_app():
             "report-uri /csp-report-endpoint;"
             f'report-to "{report_to_json}"'
             "connect-src 'self';"
+            # "form-action 'self' https://trusteddomain.com;"
+            # "frame-ancestors 'self' https://trusteddomain.com;"
         )
         
         g.csp_policy = csp_policy.strip()  # Use strip() to remove leading/trailing whitespace
@@ -57,6 +59,14 @@ def create_app():
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'  # Or 'DENY' if you prefer
         # Prevent MIME type sniffing
         response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
+        response.headers['Feature-Policy'] = "geolocation 'none'; midi 'none'; sync-xhr 'self'; microphone 'none'; camera 'none'; magnetometer 'none'; gyroscope 'none'; fullscreen 'self'; payment 'none';"
+        response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+        response.headers['Permissions-Policy'] = 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
+
         return response
 
     @app.route('/csp-report-endpoint', methods=['POST'])
@@ -68,6 +78,22 @@ def create_app():
         else:
             logger.warning(f"CSP Violation: {report}")
             return '', 204
+
+    @app.context_processor
+    def inject_csrf_token():
+        # Generate a new CSRF token if one doesn't exist in the session
+        session['csrf_token'] = secrets.token_hex(16)
+        return dict(csrf_token=session['csrf_token'])
+
+    @app.before_request
+    def check_csrf_token():
+        # Only perform CSRF check for POST requests
+        if request.method == "POST" and not request.endpoint in ['auth.logout', 'main.decrypt_password']:
+            submitted_token = request.form.get('csrf_token')
+            # Verify CSRF token
+            if not submitted_token or submitted_token != session.get('csrf_token'):
+                abort(403)  # CSRF token is invalid
+
 
     # Initialize Flask-Limiter with the app
     limiter.init_app(app)
