@@ -5,8 +5,6 @@ services:
     build:
       context: .
       dockerfile: ./dockerfiles/Dockerfile
-    ports:
-      - "5000:5000"
     volumes:
       - ./backup:/usr/src/app/backup
       - ./config/ssl:/usr/src/app/ssl # Encryption keys
@@ -61,6 +59,19 @@ services:
       - ./config/ssl:/etc/mysql/ssl  # SSL Encryption keys
       - ./config/keys:/etc/mysql/encryption  # Data at Rest Encryption key
 
+    networks:
+      - pylockr-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      # - "443:443"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # - ./config/ssl:/etc/ssl/private:ro
+    depends_on:
+      - web
     networks:
       - pylockr-network
 
