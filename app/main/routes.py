@@ -340,7 +340,8 @@ class DecryptPassword(BaseAuthenticatedView):
         '''
         Decrypt the passwords from database, this is used for copy to clipboard button
         '''
-        submitted_token = request.headers.get('csrf_token')
+        # submitted_token = request.headers.get('csrf_token')
+        submitted_token = request.headers.get('X-CSRFToken')
         if not submitted_token or submitted_token != session.get('csrf_token'):
             flash('CSRF token is invalid.', 'alert alert-error')
             return jsonify({'error': 'CSRF token is invalid.'}), 403

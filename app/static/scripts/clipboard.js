@@ -5,7 +5,7 @@ function copyToClipboard(passwordId) {
         method: 'POST', // Assuming decrypt operation is a POST request for security reasons
         headers: {
             'Content-Type': 'application/json',
-            'csrf_token': csrfToken, // Here you set the CSRF token in the request headers
+            'X-CSRFToken': csrfToken, // Here you set the CSRF token in the request headers
         },
         body: JSON.stringify({ passwordId: passwordId }) // If your backend expects JSON, ensure to send the passwordId in the body
     })
