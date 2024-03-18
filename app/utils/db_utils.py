@@ -6,13 +6,15 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func
 from pathlib import Path
-import os, uuid
+import os, uuid, logging
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import IntegrityError
 from flask import current_app
 
 logger = PyLockrLogs(name='DB_UTILS')
+
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING) # Set up for logging warning+ messages
 
 Base = declarative_base()
 
@@ -22,7 +24,7 @@ DB_PATH = os.environ.get('DB_PATH')
 if DB_PATH is None:
     raise ValueError('DB_PATH environment variable not set in .env')
 
-engine = create_engine(DB_PATH, echo=True)
+engine = create_engine(DB_PATH, echo=False) # use echo=True for debugging
 Session = scoped_session(sessionmaker(bind=engine, autoflush=False))
 
 def init_db():
