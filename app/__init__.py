@@ -8,6 +8,8 @@ import secrets,json,os
 from .utils.pylockr_logging import PyLockrLogs
 from .utils.db_utils import Session, set_up_bk_up_dir
 from .utils.extensions import limiter
+from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 logger = PyLockrLogs(name='CreateApp')
 
@@ -101,6 +103,9 @@ def create_app():
                                 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+    
     # Initialize Flask-Limiter with the app
     limiter.init_app(app)
     app.register_blueprint(main_blueprint)
