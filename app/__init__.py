@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from flask import Flask, g,request,session,abort
+from flask import Flask, g,request,session,abort,send_from_directory
 from .main import main as main_blueprint
 from .auth import auth as auth_blueprint
 from config import Config
-import secrets,json
+import secrets,json,os
 from .utils.pylockr_logging import PyLockrLogs
 from .utils.db_utils import Session, set_up_bk_up_dir
 from .utils.extensions import limiter
@@ -64,7 +64,7 @@ def create_app():
         response.headers["Expires"] = "0"
         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
         response.headers['Feature-Policy'] = "geolocation 'none'; midi 'none'; sync-xhr 'self'; microphone 'none'; camera 'none'; magnetometer 'none'; gyroscope 'none'; fullscreen 'self'; payment 'none';"
-        response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response.headers['Permissions-Policy'] = 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
 
         return response
@@ -82,6 +82,7 @@ def create_app():
     @app.context_processor
     def inject_csrf_token():
         # Generate a new CSRF token if one doesn't exist in the session
+        # if session.get('csrf_token', None) is None:
         session['csrf_token'] = secrets.token_hex(16)
         return dict(csrf_token=session['csrf_token'])
 
@@ -93,6 +94,11 @@ def create_app():
             # Verify CSRF token
             if not submitted_token or submitted_token != session.get('csrf_token'):
                 abort(403)  # CSRF token is invalid
+
+    @app.route('/favicon.ico')
+    def favicon():
+        return send_from_directory(os.path.join(app.root_path, 'static'),
+                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
     # Initialize Flask-Limiter with the app
