@@ -37,7 +37,7 @@ def create_app():
         }
 
         report_to_json = json.dumps(report_to)
-
+        trusted_domain = os.environ.get('TRUSTED_DOMAIN', 'laptop.home')
         csp_policy = (
             "default-src 'self';"
             f"script-src 'self' https://code.jquery.com https://cdn.datatables.net 'nonce-{nonce}';"
@@ -47,8 +47,8 @@ def create_app():
             "report-uri /csp-report-endpoint;"
             f'report-to "{report_to_json}"'
             "connect-src 'self';"
-            # "form-action 'self' https://trusteddomain.com;"
-            # "frame-ancestors 'self' https://trusteddomain.com;"
+            f"form-action 'self' https://{trusted_domain};"
+            f"frame-ancestors 'self' https://{trusted_domain};"
         )
         
         g.csp_policy = csp_policy.strip()  # Use strip() to remove leading/trailing whitespace
