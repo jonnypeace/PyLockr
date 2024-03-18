@@ -67,6 +67,8 @@ SSL_KEY=/usr/src/app/ssl/client-key.pem
 # Database connection string with SSL parameters
 DB_PATH="mariadb+mariadbconnector://${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB}?ssl_ca=${SSL_CA}&ssl_cert=${SSL_CERT}&ssl_key=${SSL_KEY}"
 
+SECURE_COOKIE_HTTPS=true
+TRUSTED_DOMAIN='laptop.home'
 ```
 
 Run the generate_key.py file, which will provide you with some Keys.
@@ -124,8 +126,6 @@ services:
     build:
       context: .
       dockerfile: ./dockerfiles/Dockerfile
-    ports:
-      - "5000:5000"
     volumes:
       - ./backup:/usr/src/app/backup
       - ./config/ssl:/usr/src/app/ssl # Encryption keys
@@ -143,6 +143,7 @@ services:
 
 ```
 
+## Backup Scheduler
 
 Since we're using maraidb, i wanted to utilize a clean backup utility, and so hence, we have a scheduler service. This service will create backups on a schedule of your choosing. You will see the environment variables set in the docker-compose file. The purpose of the GPG_PASSPHRASE in the .env, is so that you end up with gpg encrypted backups. Again, highlighting the importance of keeping your keys/passwords somewhere safe.
 
@@ -179,7 +180,6 @@ When you start your docker app, the logs will complain about setting your overco
 
 
 ```yaml
-
   redis:
     image: redis:alpine
     command: redis-server --requirepass ${REDIS_PASSWORD}
@@ -199,7 +199,7 @@ docker-compose down -v
 
 I think most of the environment variables set here are quite clear. You can see the config directory after you've run setup.sh, will be mapped to /etc/sql locations for mariadb to read from.
 
-```bash
+```yaml
 
   mariadb:
     image: mariadb:latest
@@ -216,6 +216,23 @@ I think most of the environment variables set here are quite clear. You can see 
 
     networks:
       - pylockr-network
+```
+
+## NGINX
+
+```yaml
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./config/nginx/ssl:/etc/ssl/private:ro
+    depends_on:
+      - web
+    networks:
+      - pylockr-network
 
 networks:
   pylockr-network:
@@ -224,6 +241,43 @@ networks:
 volumes:
   mariadb_data: {}
 
+```
+
+### nginx config
+
+Change the laptop.home server names so the server name / domain of your choosing
+
+```bash
+# Server block for HTTP - Listen on port 80
+server {
+    listen 80;
+    server_name laptop.home;
+    return 301 https://$host$request_uri;  # Redirect HTTP to HTTPS
+}
+
+# Server block for HTTPS - Listen on port 443
+server {
+    listen 443 ssl;
+    server_name laptop.home;
+
+    ssl_certificate /etc/ssl/private/fullchain.pem;  # Path to your SSL certificate
+    ssl_certificate_key /etc/ssl/private/privkey.pem;  # Path to your SSL private key
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    location / {
+        proxy_pass http://web:5000;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
 
@@ -298,6 +352,63 @@ ENTRYPOINT ["./scheduler_entry.sh"]
 
 ```
 
+## Using Cloudflare API with docker
+
+Add this to your config/nginx/cloudflare.ini
+
+```bash
+# Cloudflare API token
+dns_cloudflare_api_token = 0123456789abcdef0123456789abcdef01234567
+
+# OR, if using email and Global API Key:
+#dns_cloudflare_email = your_email@example.com
+#dns_cloudflare_api_key = 0123456789abcdef0123456789abcdef01234567
+```
+
+```bash
+chmod 600 cloudflare.ini
+```
+
+Use DNS challenge if self hosting without opening ports
+
+```bash
+docker run -it --rm \
+    -v "./config/nginx/cloudflare.ini:/etc/letsencrypt/cloudflare.ini" \
+    -v "./config/nginx/ssl:/etc/letsencrypt" \
+    certbot/dns-cloudflare certonly \
+    --dns-cloudflare \
+    --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
+    -d "example.com" -d "*.example.com"
+```
+### renewal
+
+Set this up in a cronjob.
+
+```bash
+docker run -it --rm \
+    -v "./config/nginx/cloudflare.ini:/etc/letsencrypt/cloudflare.ini" \
+    -v "./config/nginx/ssl:/etc/letsencrypt" \
+    -v "/var/lib/letsencrypt:/var/lib/letsencrypt" \
+    certbot/dns-cloudflare renew
+```
+
+## Snakeoil Certs
+
+I would just send the keys directly to the config/nginx/ssl directory if you follow my setup
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /path/to/your/privkey.pem -out /path/to/your/fullchain.pem
+
+# req: Command to manage certificate signing requests (CSR).
+# -x509: Generates a self-signed certificate.
+# -nodes: Stores the private key without passphrase protection.
+# -days 365: Sets the certificate to expire after one year. You can adjust this as needed.
+# -newkey rsa:2048: Generates a new certificate request and a new private key. rsa:2048 specifies an RSA key 2048 bits in length.
+# -keyout: Specifies the filename to write the newly created private key to.
+# -out: Specifies the output filename for the newly created certificate.
+
+```
+
 ## The Web App
 
 I think navigating around is self explanatory. There are not too many webpages, and not too many bells and whistles. Features included are...
@@ -305,25 +416,26 @@ I think navigating around is self explanatory. There are not too many webpages, 
 * Capable of importing csv password lists from vaultwarden, firefox and Brave browser (guessing chrome as well?) 
 * The table has a useful search box, which is quite a convenient method for searching using the search bar. I have included categories for this purpose, so you can search for 'email' for instance.
 * Automatic backups using the scheduling service, as detailed above
-* Sanitizing, hashing, double encyption.
+* Sanitizing, hashing, double encyption of passwords, use of an ORM for mariadb.
 * The retrieved passwords datatable never see's your passwords. The only method of returning your password is while editing, or with the copy to clipboard.
 * Download your user passwords. If you decide to move along, or just want a backup, this feature is available. I decided to make sure your passwords were safe by encrypting the CSV with AES-256, in a 7zip archive.
+* HTTPS configured in Flask and NGINX, if you follow my configuration.
+* CSRF tokens on each request
+* Session token expiry (cookie expiry)
+* Nonce token with CSP for safe javascript useage and styling
+* CDN files hashed and checked
 
 Features i'd like to implement...
 
 * A Commandline interface. I am looking at several options, including...
     - SSH, for remote instances
     - Making it wofi friendly, perhaps with a wofi script.
-* Include an NGINX reverse proxy setup, with some security protocols
-* Apply more web app security
-* A frontpage png that doesn't mention my name...
 
 If there are features you'd like to see, i welcome feedback and contributions.
 
 Limitations...
 
 * Testing. I'm one person, learning as I go.
-* No mandatory requirement for HTTPS, but I would highly recommend using HTTPS.
 * Uncertain how imports from other password managers will work. Only tested with Brave browser, firefox and Vaultwarden
 * Documentation. This might take some time to get right, but it is a simple web app, and hopefully i've explained most of it.
 * No 2FA. I've been on the fence with this, but it's probably needed. I have planned to use this behind wireguard, in isolation, behind reverse proxies etc etc. Not everyone will do this though, so if you really want this let me know.
