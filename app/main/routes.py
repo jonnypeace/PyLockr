@@ -409,7 +409,7 @@ class Backup(BaseAuthenticatedView):
         @after_this_request
         def cleanup(response):
             def delayed_cleanup():
-                time.sleep(30)  # Wait for 60 seconds before deleting
+                time.sleep(30)  # Wait for 30 seconds before deleting
                 self.secure_delete(archive_path)
                 logger.info("Backup file removed successfully.")
             Thread(target=delayed_cleanup).start()
