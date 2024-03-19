@@ -56,16 +56,15 @@ class Login(MethodView):
         
         requested_ip = get_remote_address()
         user = authenticate_user(username, password)
-        try:
-            if user:
-                session['user_id'] = user.id
-                session['username'] = user.username
-                flash('Login successful.', 'alert alert-ok')
-                logger.info(f'Successful login attempt from IP: {requested_ip}')
-                return redirect(url_for('main.dashboard'))
-        except Exception as e:
+        if user:
+            session['user_id'] = user.id
+            session['username'] = user.username
+            flash('Login successful.', 'alert alert-ok')
+            logger.info(f'Successful login attempt from IP: {requested_ip}')
+            return redirect(url_for('main.dashboard'))
+        else:
             flash('Invalid username or password.', 'alert alert-error')
-            logger.error(f'Failed login attempt from IP: {requested_ip}\n{e}')
+            logger.error(f'Failed login attempt from IP: {requested_ip}')
             return redirect(url_for('auth.login'))
 
 auth.add_url_rule('/login', view_func=Login.as_view('login'))
