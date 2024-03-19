@@ -29,14 +29,6 @@ def create_app():
         nonce = generate_nonce()
         g.nonce = nonce  # Store the nonce in g for access in templates
 
-        report_to = {
-            "group": "default",
-            "max_age": 10886400,
-            "endpoints": [{"url": "/csp-report-endpoint"}],
-            "include_subdomains": True
-        }
-
-        report_to_json = json.dumps(report_to)
         trusted_domain = os.environ.get('TRUSTED_DOMAIN', 'laptop.home')
         csp_policy = (
             "default-src 'self';"
@@ -44,8 +36,8 @@ def create_app():
             "style-src 'self' https://cdn.datatables.net;"
             "object-src 'none';"
             "img-src 'self';"
-            "report-uri /csp-report-endpoint;"
-            f'report-to "{report_to_json}"'
+            "report-to default;"
+            #"report-uri /csp-report-endpoint;"
             "connect-src 'self';"
             f"form-action 'self' https://{trusted_domain};"
             f"frame-ancestors 'self' https://{trusted_domain};"
@@ -55,7 +47,14 @@ def create_app():
 
     @app.after_request
     def apply_security_headers(response):
-        # CSP header
+        response.headers['Report-To'] = json.dumps({
+            "group": "default",
+            "max_age": 10886400,
+            "endpoints": [{"url": "/csp-report-endpoint"}],
+            "include_subdomains": True
+        })
+
+       # CSP header
         response.headers['Content-Security-Policy'] = g.csp_policy
         # Clickjacking Protection
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'  # Or 'DENY' if you prefer
@@ -65,7 +64,6 @@ def create_app():
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
-        response.headers['Feature-Policy'] = "geolocation 'none'; midi 'none'; sync-xhr 'self'; microphone 'none'; camera 'none'; magnetometer 'none'; gyroscope 'none'; fullscreen 'self'; payment 'none';"
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response.headers['Permissions-Policy'] = 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
         # Add COOP, COEP, and CORP headers
