@@ -22,12 +22,9 @@ function createToastContainer() {
     return container;
 }
 
-// Example usage: showToast('Backup download initiated. Please check your downloads folder.');
-
 document.addEventListener('DOMContentLoaded', function() {
     const backupForm = document.getElementById('backupForm'); // Ensure your form has this ID
     backupForm.addEventListener('submit', function(e) {
         showToast('Please test backup with the password you provided');
-        // No need to prevent the default form submission here
     });
 });
