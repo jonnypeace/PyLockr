@@ -257,11 +257,38 @@ server {
 
 # Server block for HTTPS - Listen on port 443
 server {
-    listen 443 ssl;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name laptop.home;
 
     ssl_certificate /etc/ssl/private/fullchain.pem;  # Path to your SSL certificate
     ssl_certificate_key /etc/ssl/private/privkey.pem;  # Path to your SSL private key
+    ssl_dhparam /etc/ssl/private/dhparam.pem; # Diffie-Hellman Parameters
+
+    # Use strong SSL protocols
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # Use strong ciphers
+    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256';
+
+    # Prefer server ciphers
+    ssl_prefer_server_ciphers on;
+
+    # Enable HSTS
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Enable OCSP stapling
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    ssl_trusted_certificate /etc/ssl/private/fullchain.pem;
+
+    # Resolver
+    resolver 1.1.1.1 8.8.8.8 valid=300s;
+    resolver_timeout 5s;
+
+    # Other SSL settings
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 24h;
 
     # Security headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
@@ -369,7 +396,7 @@ dns_cloudflare_api_token = 0123456789abcdef0123456789abcdef01234567
 chmod 600 cloudflare.ini
 ```
 
-Use DNS challenge if self hosting without opening ports
+Use DNS challenge if self hosting without opening ports. Remember to change this relative path ./config/nginx... to whatever directory you are choosing. I am assuming you have passed this directory to nginx as per docker-compose.
 
 ```bash
 docker run -it --rm \
@@ -377,7 +404,7 @@ docker run -it --rm \
     -v "./config/nginx/ssl:/etc/letsencrypt" \
     certbot/dns-cloudflare certonly \
     --dns-cloudflare \
-    --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
+    --dns-cloudflare-credentials ./config/nginx/cloudflare.ini \
     -d "example.com" -d "*.example.com"
 ```
 ### renewal
@@ -397,7 +424,7 @@ docker run -it --rm \
 I would just send the keys directly to the config/nginx/ssl directory if you follow my setup
 
 ```bash
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /path/to/your/privkey.pem -out /path/to/your/fullchain.pem
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./config/nginx/ssl/privkey.pem -out ./config/nginx/ssl/fullchain.pem
 
 # req: Command to manage certificate signing requests (CSR).
 # -x509: Generates a self-signed certificate.
@@ -407,6 +434,14 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /path/to/your/privke
 # -keyout: Specifies the filename to write the newly created private key to.
 # -out: Specifies the output filename for the newly created certificate.
 
+```
+
+## DHPARAM
+
+This adds additional security, something to do with helpng secure key exchange. Remember to change this relative path ./config/nginx... to whatever directory you are choosing. 
+
+```bash
+openssl dhparam -out ./config/nginx/ssl/dhparam.pem 4096
 ```
 
 ## The Web App
