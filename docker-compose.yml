@@ -7,7 +7,9 @@ services:
       dockerfile: ./dockerfiles/Dockerfile
     volumes:
       - ./backup:/usr/src/app/backup
-      - ./config/ssl:/usr/src/app/ssl # Encryption keys
+      - ./config/ssl/ca-cert.pem:/usr/src/app/ssl/ca-cert.pem:ro
+      - ./config/ssl/client-cert.pem:/usr/src/app/ssl/client-cert.pem:ro
+      - ./config/ssl/client-key.pem:/usr/src/app/ssl/client-key.pem:ro
     environment:
       - BACKUP_DIR=/usr/src/app/backup
       - SESSION_TIMEOUT=30
@@ -26,7 +28,9 @@ services:
       dockerfile: ./dockerfiles/Dockerfile_Scheduler
     volumes:
       - ./backup:/usr/src/app/backup
-      - ./config/ssl:/usr/src/app/ssl # Encryption keys
+      - ./config/ssl/ca-cert.pem:/usr/src/app/ssl/ca-cert.pem:ro
+      - ./config/ssl/client-cert.pem:/usr/src/app/ssl/client-cert.pem:ro
+      - ./config/ssl/client-key.pem:/usr/src/app/ssl/client-key.pem:ro
     environment:
       - BACKUP_DIR=/usr/src/app/backup
       - MAX_DB_BACKUPS=42
@@ -55,9 +59,11 @@ services:
       - MYSQL_DATABASE=pylockrdb
     volumes:
       - mariadb_data:/var/lib/mysql
-      - ./config/cnf:/etc/mysql/conf.d  # Custom my.cnf
-      - ./config/ssl:/etc/mysql/ssl  # SSL Encryption keys
-      - ./config/keys:/etc/mysql/encryption  # Data at Rest Encryption key
+      - ./config/cnf:/etc/mysql/conf.d:ro  # Custom my.cnf
+      - ./config/keys:/etc/mysql/encryption:ro  # Data at Rest Encryption key
+      - ./config/ssl/server-cert.pem:/etc/mysql/ssl/server-cert.pem:ro
+      - ./config/ssl/server-key.pem:/etc/mysql/ssl/server-key.pem:ro
+      - ./config/ssl/ca-cert.pem:/etc/mysql/ssl/ca-cert.pem:ro
 
     networks:
       - pylockr-network
