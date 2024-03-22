@@ -6,7 +6,6 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      #- ./backup:/usr/src/app/backup
       - ./config/ssl/ca-cert.pem:/usr/src/app/ssl/ca-cert.pem
       - ./config/ssl/client-cert.pem:/usr/src/app/ssl/client-cert.pem
       - ./config/ssl/client-key.pem:/usr/src/app/ssl/client-key.pem
@@ -52,10 +51,10 @@ services:
   mariadb:
     image: mariadb:latest
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - MYSQL_DATABASE=pylockrdb
+      - MARIADB_ROOT_PASSWORD=${MYSQL_ROOT}
+      - MARIADB_USER=${MYSQL_USER}
+      - MARIADB_PASSWORD=${MYSQL_PASSWORD}
+      - MARIADB_DATABASE=pylockrdb
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./config/cnf:/etc/mysql/conf.d  # Custom my.cnf
