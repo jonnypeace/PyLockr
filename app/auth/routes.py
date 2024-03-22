@@ -130,12 +130,11 @@ class SignUP(MethodView):
             flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'alert alert-error')
             return redirect(url_for('auth.signup'))
 
-        try:
-            if add_user(username, password):
-                flash('User successfully registered.', 'alert alert-ok')
-                return redirect(url_for('main.home'))
-        except Exception as e:
-            logger.error(f'Signup unsuccessful, username possibly in use, error:\n{e}')
+        if add_user(username, password):
+            flash('User successfully registered.', 'alert alert-ok')
+            return redirect(url_for('main.home'))
+        else:
+            logger.error(f'Signup unsuccessful, username possibly in use')
             flash('Username already exists. Please choose a different one.', 'alert alert-error')
             return redirect(url_for('auth.signup'))
         
