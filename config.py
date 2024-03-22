@@ -10,7 +10,7 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=int(os.environ.get('SESSION_TIMEOUT', 30)))
     DB_PATH = os.environ.get('DB_PATH')
     FERNET_KEY = os.environ.get('FERNET_KEY')
-    BACKUP_DIR = os.path.join(os.environ.get('BACKUP_DIR', '/usr/src/app/backup'))
+    # BACKUP_DIR = os.path.join(os.environ.get('BACKUP_DIR', '/usr/src/app/backup'))
 
     if FERNET_KEY:
         # Theres a bug in python 3.11/python-dotenv/flask loading .env files with base64 encoding.
@@ -28,5 +28,5 @@ class Config:
     # Convert the string to a boolean
     SESSION_COOKIE_SECURE = secure_cookies.lower() in ['true', '1']
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'  # or 'Strict'
+    SESSION_COOKIE_SAMESITE = 'Strict'  # or 'Lax'
 

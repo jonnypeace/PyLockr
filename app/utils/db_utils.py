@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from app.utils.pylockr_logging import PyLockrLogs
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, TIMESTAMP
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, TIMESTAMP, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func
@@ -28,8 +28,8 @@ engine = create_engine(DB_PATH, echo=False) # use echo=True for debugging
 Session = scoped_session(sessionmaker(bind=engine, autoflush=False))
 
 def init_db():
-    Base.metadata.create_all(engine)
-
+    inspector = inspect(engine)
+    Base.metadata.create_all(engine,checkfirst=True)
 
 class User(Base):
     __tablename__ = 'users'
@@ -57,13 +57,13 @@ class BackupHistory(Base):
     user_id = Column(String(255), ForeignKey('users.id'), nullable=False)
     user = relationship("User", back_populates="backup_history")  # This establishes a relationship with the User model
 
-init_db()
+#init_db()
 
-def set_up_bk_up_dir():
-    BACKUP_DIR = os.environ.get('BACKUP_DIR', '/usr/src/app/backup')
-    backup_path = Path(BACKUP_DIR)
-    backup_path.mkdir(parents=True, exist_ok=True)
-    print(f"Backup directory is set at: {backup_path.absolute()}")
+#def set_up_bk_up_dir():
+#    BACKUP_DIR = os.environ.get('BACKUP_DIR', '/usr/src/app/backup')
+#    backup_path = Path(BACKUP_DIR)
+#    backup_path.mkdir(parents=True, exist_ok=True)
+#    print(f"Backup directory is set at: {backup_path.absolute()}")
 
 
 def add_user(username, password):

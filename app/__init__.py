@@ -6,7 +6,7 @@ from .auth import auth as auth_blueprint
 from config import Config
 import secrets,json,os
 from .utils.pylockr_logging import PyLockrLogs
-from .utils.db_utils import Session, set_up_bk_up_dir
+from .utils.db_utils import Session
 from .utils.extensions import limiter
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -41,6 +41,7 @@ def create_app():
             "connect-src 'self';"
             f"form-action 'self' https://{trusted_domain};"
             f"frame-ancestors 'self' https://{trusted_domain};"
+            "base-uri 'none';"
         )
         
         g.csp_policy = csp_policy.strip()  # Use strip() to remove leading/trailing whitespace
@@ -113,5 +114,5 @@ def create_app():
     app.register_blueprint(main_blueprint)
     # app.register_blueprint(auth_blueprint, url_prefix='/auth') ####### Consider for future
     app.register_blueprint(auth_blueprint)
-    set_up_bk_up_dir() # Sets up backup directory
+    # set_up_bk_up_dir() # Sets up backup directory
     return app

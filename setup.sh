@@ -23,7 +23,7 @@ mkdir -p "${DB_KEY_DIR}" "${DB_CNF_DIR}" "${DB_SSL_DIR}"
 encryption_key_db=$(openssl rand -hex 32)
 
 cat <<EOF > "${DB_KEY_DIR}/db_encryption.key"
-1; $encryption_key_db
+1;$encryption_key_db
 EOF
 
 cat <<EOF > "${DB_CNF_DIR}/my.cnf"

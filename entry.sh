@@ -10,6 +10,11 @@ while ! nc -z mariadb 3306; do
 done
 echo "MariaDB is ready!"
 
+su -c '
+    echo "Setting up DB..."
+    exec /usr/src/app/set_up_db.py
+' appuser
+
 # Switch to the appuser and run the commands
 su -c '
     echo "Starting Gunicorn..."
