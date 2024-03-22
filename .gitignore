@@ -1,6 +1,7 @@
 __pycache__/
-users.db
 .env
 test*
 backup/
-config/
+config/cnf
+config/keys
+config/ssl

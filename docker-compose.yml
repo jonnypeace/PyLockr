@@ -57,6 +57,7 @@ services:
       - MARIADB_DATABASE=pylockrdb
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./config/secure-init.sql:/docker-entrypoint-initdb.d/secure-init.sql
       - ./config/cnf:/etc/mysql/conf.d  # Custom my.cnf
       - ./config/keys:/etc/mysql/encryption  # Data at Rest Encryption key
       - ./config/ssl/server-cert.pem:/etc/mysql/ssl/server-cert.pem
