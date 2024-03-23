@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-login">
+    <div class="login-2fa">
+        <img src="data:image/png;base64,{{ otp_img_data }}" alt="2FA QR Code">
+    </div>
+    <form action="/login2fa" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="otp" placeholder="Enter 2FA Code" required>
+        <div class="checkbox">
+            <label>
+                <input type="checkbox" name="remember_me"> Remember this device
+            </label>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+</div>
+{% endblock %}
