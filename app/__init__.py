@@ -35,7 +35,7 @@ def create_app():
             f"script-src 'self' https://code.jquery.com https://cdn.datatables.net 'nonce-{nonce}';"
             "style-src 'self' https://cdn.datatables.net;"
             "object-src 'none';"
-            "img-src 'self';"
+            "img-src 'self' data:;"
             "report-to default;"
             #"report-uri /csp-report-endpoint;"
             "connect-src 'self';"
