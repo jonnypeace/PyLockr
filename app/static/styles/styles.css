@@ -427,3 +427,39 @@ table.dataTable tbody tr:hover {
     /* background-color: #411245 !important; */
     background-color: #730308 !important;
 }
+
+@media (max-width: 768px) {
+    body {
+        display: flex; /* Flex layout for vertical centering */
+        flex-direction: column; /* Stack elements vertically */
+        align-items: center; /* Center-align the children horizontally */
+        padding: 20px; /* Add some padding around the body */
+        height: auto; /* Adjust height to be auto */
+        min-height: 100vh; /* Ensure it fills at least the full height of the viewport */
+        justify-content: center; /* Center content vertically */
+    }
+
+    .container {
+        width: 90%; /* Allow the container to fill the width */
+        max-width: 400px; /* Max width for better control */
+        display: flex; /* Establish this container as a flex container */
+        flex-direction: column; /* Align children in a column */
+        align-items: center; /* Center-align the children */
+    }
+    .container-login {
+        width: 90%; /* Allow the container to fill the width */
+        max-width: 400px; /* Max width for better control */
+        display: flex; /* Establish this container as a flex container */
+        flex-direction: column; /* Align children in a column */
+        align-items: center; /* Center-align the children */
+    }
+
+    .branding img {
+        margin-bottom: 15px; /* Adjust spacing for mobile */
+    }
+
+    form {
+        width: 100%; /* Make sure the form takes the full width of its container */
+        padding: 15px; /* Reduce padding for the form on smaller screens */
+    }
+}
