@@ -393,18 +393,6 @@ div.dts div.dt-scroll-body table, div.dts div.dataTables_scrollBody table {
 .dt-row-hover
 
 
-table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control::before {
-  margin-right: .5em;
-  display: inline-block;
-  box-sizing: border-box;
-  content: "";
-  border-top: 5px solid black !important;
-  border-left: 10px solid white !important;
-  border-bottom: 5px solid black !important;
-  border-right: 0px solid white !important;
-  margin-right: 1em !important;
-}
-
 .delete-btn {
     padding: 5px 10px !important;
     border: none !important; /* Remove border */
@@ -460,16 +448,16 @@ table.dataTable tbody tr:hover {
     .button-link {
         margin-bottom: 5px; /* Add bottom margin in mobile view */
     }
+}
 
-    table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control::before {
-        margin-right: .5em;
-        display: inline-block;
-        box-sizing: border-box;
-        content: "";
-        border-top: 5px solid black !important;
-        border-left: 10px solid white !important;
-        border-bottom: 5px solid black !important;
-        border-right: 0px solid white !important;
-        margin-right: 1em !important;
-    }
+table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control::before {
+    margin-right: .5em;
+    display: inline-block;
+    box-sizing: border-box;
+    content: "";
+    border-top: 5px solid black !important;
+    border-left: 10px solid white !important;
+    border-bottom: 5px solid black !important;
+    border-right: 0px solid white !important;
+    margin-right: 1em !important;
 }
