@@ -18,6 +18,9 @@ redis = "*"
 python-lsp-server = "*"
 sqlalchemy = "*"
 mariadb = "*"
+pyotp = "*"
+qrcode = {extras = ["pil"], version = "*"}
+itsdangerous = "*"
 
 [dev-packages]
 ipykernel = "*"
