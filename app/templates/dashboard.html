@@ -8,7 +8,7 @@
         <a href="{{ url_for('main.retrieve_passwords') }}" class="button-link">Retrieve Passwords</a>
         <a href="{{ url_for('auth.change_user_password') }}" class="button-link">Change User Password</a>
         <br><br>
-        <form id="backupForm" method="POST" action="/backup">
+        <form class="backup-form" id="backupForm" method="POST" action="/backup">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label for="backupPassword">Backup to 7zip. Enter Password:</label>
             <input type="password" id="backupPassword" name="backupPassword" required>
@@ -21,7 +21,7 @@
         {% endif %}
         <p class="alert-ok">Last Backup: {{ last_backup if last_backup else 'Never' }}</p>
         <br><br>
-        <form action="{{ url_for('main.upload_csv') }}" method="POST" enctype="multipart/form-data">
+        <form class="csv-form" action="{{ url_for('main.upload_csv') }}" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label for="csvFile" class="custom-file-upload">Select CSV file & Upload into Database</label>
             <input type="file" id="csvFile" name="csvFile" accept=".csv" class="csv-file">

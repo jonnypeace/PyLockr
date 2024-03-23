@@ -439,14 +439,7 @@ table.dataTable tbody tr:hover {
         justify-content: center; /* Center content vertically */
     }
 
-    .container {
-        width: 90%; /* Allow the container to fill the width */
-        max-width: 400px; /* Max width for better control */
-        display: flex; /* Establish this container as a flex container */
-        flex-direction: column; /* Align children in a column */
-        align-items: center; /* Center-align the children */
-    }
-    .container-login {
+    .container, .container-login, .backup-form, .csv-form {
         width: 90%; /* Allow the container to fill the width */
         max-width: 400px; /* Max width for better control */
         display: flex; /* Establish this container as a flex container */
@@ -459,7 +452,24 @@ table.dataTable tbody tr:hover {
     }
 
     form {
-        width: 100%; /* Make sure the form takes the full width of its container */
+        width: 90%; /* Make sure the form takes the full width of its container */
         padding: 15px; /* Reduce padding for the form on smaller screens */
+        align-items: center; /* Center-align the children */
+    }
+
+    .button-link {
+        margin-bottom: 5px; /* Add bottom margin in mobile view */
+    }
+
+    table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control::before {
+        margin-right: .5em;
+        display: inline-block;
+        box-sizing: border-box;
+        content: "";
+        border-top: 5px solid black !important;
+        border-left: 10px solid white !important;
+        border-bottom: 5px solid black !important;
+        border-right: 0px solid white !important;
+        margin-right: 1em !important;
     }
 }
