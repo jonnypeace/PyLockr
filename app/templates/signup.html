@@ -9,7 +9,7 @@
         <input type="text" name="username" placeholder="Username" required>
         <input type="password" name="password" placeholder="Password" minlength="{{ min_password_length }}" required>
         <input type="password" name="confirm_password" minlength="{{ min_password_length }}"
-            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&\-]).{ {{ min_password_length }},}"
+            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&\-]).{{ '{' }}{{ min_password_length }},}"
             title="Must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be at least {{ min_password_length }} characters long"
             placeholder="Confirm Password" required>
         <button type="submit">Sign Up</button>
