@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
 from . import auth
-from flask import render_template, request, redirect, url_for, session, flash, current_app
-import re,secrets
+from flask import render_template, request, redirect, url_for, session, flash, current_app, make_response
+import re,secrets, os
 from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, encrypt_data
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
 from app.utils.extensions import limiter
 from flask_limiter.util import get_remote_address
+import pyotp, qrcode, io, base64
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 
 logger = PyLockrLogs(name='Auth')
 
@@ -28,6 +30,24 @@ def is_password_complex(password):
     if not re.search(r"[!@#$%^&*()-_+<>?]", password):
         return False
     return True
+
+def set_remember_me_cookie(remember_me, response):
+    s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    token = s.dumps({'remember_me': remember_me})
+    https_safe = current_app.config['SESSION_COOKIE_SECURE']
+    response.set_cookie('remember_me', token, max_age=30*24*3600, httponly=True, secure=https_safe, samesite='Strict')
+    return response
+
+def check_remember_me_cookie():
+    remember_me_cookie = request.cookies.get('remember_me')
+    if remember_me_cookie:
+        s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(remember_me_cookie)
+            return data.get('remember_me', False)
+        except BadSignature:
+            return False
+    return False
 
 class Logout(MethodView):
     def post(self):
@@ -59,9 +79,16 @@ class Login(MethodView):
         if user:
             session['user_id'] = user.id
             session['username'] = user.username
-            flash('Login successful.', 'alert alert-ok')
-            logger.info(f'Successful login attempt from IP: {requested_ip}')
-            return redirect(url_for('main.dashboard'))
+            session['2fa_otp'] = user.otp_2fa_enc
+            if not check_remember_me_cookie():
+                # Prompt for 2FA
+                flash('Login successful, please check 2FA', 'alert alert-ok')
+                return redirect(url_for('auth.login2fa'))
+            else:
+                # Proceed without 2FA
+                flash('Login successful.', 'alert alert-ok')
+                logger.info(f'Successful login attempt from IP: {requested_ip}')
+                return redirect(url_for('main.dashboard'))
         else:
             flash('Invalid username or password.', 'alert alert-error')
             logger.error(f'Failed login attempt from IP: {requested_ip}')
@@ -139,3 +166,27 @@ class SignUP(MethodView):
             return redirect(url_for('auth.signup'))
         
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))
+
+class Login2FA(MethodView):
+    def get(self):
+        url = pyotp.totp.TOTP(decrypt_data(session['2fa_otp'])).provisioning_uri(session['username'], issuer_name="PyLockr")
+        otp_img = qrcode.make(url)
+        # Save the QR code to a bytes buffer
+        buf = io.BytesIO()
+        otp_img.save(buf, format='PNG')
+        buf.seek(0)
+        otp_img_data = base64.b64encode(buf.getvalue()).decode()
+        return render_template('login2fa.html', otp_img_data=otp_img_data)
+    def post(self):
+        otp = request.form.get('otp')
+        if pyotp.TOTP(decrypt_data(session['2fa_otp'])).verify(otp):
+            remember_me = 'remember_me' in request.form
+            response = redirect(url_for('main.dashboard'))
+            response = set_remember_me_cookie(remember_me, response)
+            flash('Authentication Successful', 'alert alert-ok')
+            return response
+        else:
+            flash('Authentication Please Try QR Code Again', 'alert alert-error')
+            return redirect(url_for('auth.login2fa'))
+            
+auth.add_url_rule('/login2fa', view_func=Login2FA.as_view('login2fa'))
