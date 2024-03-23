@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func
 from pathlib import Path
-import os, uuid, logging
+import os, uuid, logging, pyotp
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import IntegrityError
@@ -35,7 +35,8 @@ class User(Base):
     __tablename__ = 'users'
     id = Column(String(255), primary_key=True, unique=True, nullable=False)
     username = Column(String(255), unique=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(300), nullable=False)
+    otp_2fa_enc = Column(String(255), nullable=False)
     passwords = relationship("Password", back_populates="user")
     backup_history = relationship("BackupHistory", back_populates="user")
 
@@ -70,7 +71,8 @@ def add_user(username, password):
     '''Add a new user with a hashed password to the database.'''
     user_id = str(uuid.uuid4())
     hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
-    new_user = User(id=user_id, username=username, password_hash=hashed_password)
+    encrypted_otp = encrypt_data(pyotp.random_base32())
+    new_user = User(id=user_id, username=username, password_hash=hashed_password, otp_2fa_enc=encrypted_otp)
     session = Session()
     try:
         session.add(new_user)
