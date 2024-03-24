@@ -2,7 +2,9 @@
 {% block content %}
 <div class="container-login">
     <div class="login-2fa">
+        {% if otp_img_data %}
         <img src="data:image/png;base64,{{ otp_img_data }}" alt="2FA QR Code">
+        {% endif %}
     </div>
     <form action="/login2fa" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

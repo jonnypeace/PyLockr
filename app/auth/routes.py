@@ -16,6 +16,12 @@ logger = PyLockrLogs(name='Auth')
 
 sanitizer = Sanitizer()  # Used for name and username
 
+class CookieIntegrityError(Exception):
+    """Exception raised when the integrity of a cookie is compromised."""
+    def __init__(self, message="Cookie integrity check failed"):
+        self.message = message
+        super().__init__(self.message)
+
 def is_password_complex(password):
     """Check if the password meets complexity requirements."""
     min_length = current_app.config['MIN_PASSWORD_LENGTH']
@@ -39,15 +45,19 @@ def set_remember_me_cookie(remember_me, response):
     return response
 
 def check_remember_me_cookie():
-    remember_me_cookie = request.cookies.get('remember_me')
+    remember_me_cookie = request.cookies.get('remember_me', None)
     if remember_me_cookie:
         s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
         try:
             data = s.loads(remember_me_cookie)
-            return data.get('remember_me', False)
+            cookie_status = data.get('remember_me', None)
+            if cookie_status is None:
+                raise CookieIntegrityError("Invalid 'remember_me' value in cookie.")
+            return cookie_status
         except BadSignature:
+            logger.error(f'Cookie has a bad signature, and potentially been tampered with')
             return False
-    return False
+    return None
 
 class Logout(MethodView):
     def post(self):
@@ -76,19 +86,24 @@ class Login(MethodView):
         
         requested_ip = get_remote_address()
         user = authenticate_user(username, password)
+        session['temp_user_id'] = user.id # Needed for 2FA
+        session['username'] = user.username
+        session['2fa_otp'] = user.otp_2fa_enc
+        try:
+            session['remember_me'] = check_remember_me_cookie()
+        except CookieIntegrityError as CIE:
+            logger.error(f'Cookie Does not contain remember_me field.\n{CIE}')
         if user:
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['2fa_otp'] = user.otp_2fa_enc
-            if not check_remember_me_cookie():
-                # Prompt for 2FA
-                flash('Login successful, please check 2FA', 'alert alert-ok')
-                return redirect(url_for('auth.login2fa'))
-            else:
+            if session['remember_me']:
                 # Proceed without 2FA
+                session['user_id'] = user.id
                 flash('Login successful.', 'alert alert-ok')
                 logger.info(f'Successful login attempt from IP: {requested_ip}')
                 return redirect(url_for('main.dashboard'))
+            else:
+                # Prompt for 2FA
+                flash('Login successful, please check 2FA', 'alert alert-ok')
+                return redirect(url_for('auth.login2fa'))
         else:
             flash('Invalid username or password.', 'alert alert-error')
             logger.error(f'Failed login attempt from IP: {requested_ip}')
@@ -168,25 +183,37 @@ class SignUP(MethodView):
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))
 
 class Login2FA(MethodView):
+    decorators = [limiter.limit("5 per minute")]
     def get(self):
-        url = pyotp.totp.TOTP(decrypt_data(session['2fa_otp'])).provisioning_uri(session['username'], issuer_name="PyLockr")
-        otp_img = qrcode.make(url)
-        # Save the QR code to a bytes buffer
-        buf = io.BytesIO()
-        otp_img.save(buf, format='PNG')
-        buf.seek(0)
-        otp_img_data = base64.b64encode(buf.getvalue()).decode()
-        return render_template('login2fa.html', otp_img_data=otp_img_data)
+        if session['remember_me'] is None:
+            url = pyotp.totp.TOTP(decrypt_data(session['2fa_otp'])).provisioning_uri(session['username'], issuer_name="PyLockr")
+            otp_img = qrcode.make(url)
+            # Save the QR code to a bytes buffer
+            buf = io.BytesIO()
+            otp_img.save(buf, format='PNG')
+            buf.seek(0)
+            otp_img_data = base64.b64encode(buf.getvalue()).decode()
+            return render_template('login2fa.html', otp_img_data=otp_img_data)
+        elif session['remember_me'] is False:
+            return render_template('login2fa.html', otp_img_data='')
+        else:
+            return redirect(url_for('auth.login2fa'))
+
     def post(self):
         otp = request.form.get('otp')
         if pyotp.TOTP(decrypt_data(session['2fa_otp'])).verify(otp):
             remember_me = 'remember_me' in request.form
             response = redirect(url_for('main.dashboard'))
             response = set_remember_me_cookie(remember_me, response)
-            flash('Authentication Successful', 'alert alert-ok')
-            return response
+            session['user_id'] = session.pop('temp_user_id', None)
+            if session['user_id'] is not None:
+                flash('Authentication Successful', 'alert alert-ok')
+                return response
+            else:
+                flash('Authentication Failed due to user_id not being set', 'alert alert-error')
+                return redirect(url_for('auth.login2fa'))
         else:
-            flash('Authentication Please Try QR Code Again', 'alert alert-error')
+            flash('Authentication: Please Try QR Code Again', 'alert alert-error')
             return redirect(url_for('auth.login2fa'))
             
 auth.add_url_rule('/login2fa', view_func=Login2FA.as_view('login2fa'))
