@@ -274,7 +274,7 @@ input[type='checkbox'] {
 
 /* Mobile devices login styles */
 @media (max-width: 992px) {
-    .container-login {
+    .container-login, container-2fa {
         width: 100%;
         max-width: 100%;
         max-height: 90vh;
@@ -424,6 +424,31 @@ table.dataTable tbody tr:hover {
     background-color: #730308 !important;
 }
 
+.container-2fa {
+  border: 1px solid black;
+  margin: 1rem;
+  padding: 2rem 2rem;
+  text-align: center;
+  color: green;
+  text-align: left;
+}
+.login-2fa {
+  display: inline-block;
+  padding: 4rem 4rem;
+  vertical-align: middle;
+  color: green;
+  max-width: 400px;
+}
+
+code {
+    font-size: 16px;
+    color: red;
+}
+
+.link-2fa {
+    color: red;
+}
+
 @media (max-width: 768px) {
     body {
         display: flex; /* Flex layout for vertical centering */
@@ -435,7 +460,7 @@ table.dataTable tbody tr:hover {
         justify-content: center; /* Center content vertically */
     }
 
-    .container, .container-login, .backup-form, .csv-form {
+    .container-2fa, .container, .container-login, .backup-form, .csv-form {
         width: 90%; /* Allow the container to fill the width */
         max-width: 400px; /* Max width for better control */
         display: flex; /* Establish this container as a flex container */
@@ -455,6 +480,12 @@ table.dataTable tbody tr:hover {
 
     .button-link {
         margin-bottom: 5px; /* Add bottom margin in mobile view */
+    }
+    .login-2fa {
+        color: green;
+        text-align: left;
+        margin: 1rem;
+        padding: 0rem 0rem;
     }
 }
 

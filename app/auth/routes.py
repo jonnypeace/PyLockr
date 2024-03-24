@@ -3,7 +3,7 @@
 from . import auth
 from flask import render_template, request, redirect, url_for, session, flash, current_app, make_response
 import re,secrets, os
-from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, encrypt_data
+from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, update_initial_setup
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
@@ -57,7 +57,7 @@ def check_remember_me_cookie():
         except BadSignature:
             logger.error(f'Cookie has a bad signature, and potentially been tampered with')
             return False
-    return None
+    return False
 
 class Logout(MethodView):
     def post(self):
@@ -70,7 +70,7 @@ class Logout(MethodView):
 auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
 class Login(MethodView):
-    decorators = [limiter.limit("5 per minute")]
+    decorators = [limiter.limit("7 per minute")]
     def get(self):
         # Render the template as usual
         return render_template('login.html')
@@ -86,19 +86,20 @@ class Login(MethodView):
         
         requested_ip = get_remote_address()
         user = authenticate_user(username, password)
-        session['temp_user_id'] = user.id # Needed for 2FA
-        session['username'] = user.username
-        session['2fa_otp'] = user.otp_2fa_enc
-        try:
-            session['remember_me'] = check_remember_me_cookie()
-        except CookieIntegrityError as CIE:
-            logger.error(f'Cookie Does not contain remember_me field.\n{CIE}')
         if user:
+            session['temp_user_id'] = user.id # Needed for 2FA
+            session['username'] = user.username
+            session['2fa_otp'] = user.otp_2fa_enc
+            session['initial_setup'] = user.initial_setup
+            try:
+                session['remember_me'] = check_remember_me_cookie()
+            except CookieIntegrityError as CIE:
+                logger.error(f'Cookie Does not contain remember_me field.\n{CIE}')
             if session['remember_me']:
                 # Proceed without 2FA
-                session['user_id'] = user.id
+                session['user_id'] = session.pop('temp_user_id')
                 flash('Login successful.', 'alert alert-ok')
-                logger.info(f'Successful login attempt from IP: {requested_ip}')
+                logger.info(f'Successful login attempt {requested_ip=}')
                 return redirect(url_for('main.dashboard'))
             else:
                 # Prompt for 2FA
@@ -106,7 +107,7 @@ class Login(MethodView):
                 return redirect(url_for('auth.login2fa'))
         else:
             flash('Invalid username or password.', 'alert alert-error')
-            logger.error(f'Failed login attempt from IP: {requested_ip}')
+            logger.error(f'Failed login attempt {requested_ip=} {username=}')
             return redirect(url_for('auth.login'))
 
 auth.add_url_rule('/login', view_func=Login.as_view('login'))
@@ -183,9 +184,9 @@ class SignUP(MethodView):
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))
 
 class Login2FA(MethodView):
-    decorators = [limiter.limit("5 per minute")]
+    decorators = [limiter.limit("7 per minute")]
     def get(self):
-        if session['remember_me'] is None:
+        if session['initial_setup']:
             url = pyotp.totp.TOTP(decrypt_data(session['2fa_otp'])).provisioning_uri(session['username'], issuer_name="PyLockr")
             otp_img = qrcode.make(url)
             # Save the QR code to a bytes buffer
@@ -193,11 +194,11 @@ class Login2FA(MethodView):
             otp_img.save(buf, format='PNG')
             buf.seek(0)
             otp_img_data = base64.b64encode(buf.getvalue()).decode()
-            return render_template('login2fa.html', otp_img_data=otp_img_data)
-        elif session['remember_me'] is False:
-            return render_template('login2fa.html', otp_img_data='')
+            update_initial_setup(session['username'])
+            session['initial_setup'] = False
+            return render_template('login2fa.html', otp_key=decrypt_data(session['2fa_otp']), otp_img=otp_img_data, otp_url=url)
         else:
-            return redirect(url_for('auth.login2fa'))
+            return render_template('login2fa.html', otp_img='')
 
     def post(self):
         otp = request.form.get('otp')

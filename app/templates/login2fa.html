@@ -1,14 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container-login">
+<div class="container-2fa">
+    {% if otp_img %}
     <div class="login-2fa">
-        {% if otp_img_data %}
-        <img src="data:image/png;base64,{{ otp_img_data }}" alt="2FA QR Code">
-        {% endif %}
-    </div>
-    <form action="/login2fa" method="post">
+        <img src="data:image/png;base64,{{ otp_img }}" alt="2FA QR Code">
+        <br>
+        <form action="/login2fa" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="text" name="otp" placeholder="Enter 2FA Code" required>
+        <input autocomplete="off" type="text" name="otp" placeholder="Enter 2FA Code" required>
         <div class="checkbox">
             <label>
                 <input type="checkbox" name="remember_me"> Remember this device
@@ -16,5 +15,36 @@
         </div>
         <button type="submit">Login</button>
     </form>
+    </div>
+    <div class="login-2fa">
+        <h2><strong>Two-Factor Authentication Setup</strong></h2>
+        <p>Scan QR Code or if on mobile device, click the link to open authentication app, or copy-paste key into authentication app</p>
+        <a class="link-2fa" href={{ otp_url }} target="_blank">Set up in 2FA app</a>
+        <p>Store this Key Somewhere Safe. This key can be used instead of scanning the QR code, and there will be no redeemable way back into your account without it</p>
+        <p><strong>Secret Key:</strong> <code>{{ otp_key }}</code></p>
+        <h3>Keep Your Key and Data Safe</h3>
+        <ul>
+            <li>Write it down and store it in a secure location.</li>
+            <li>Store on a USB drive and keep in a secure location</li>
+            <li>Do not store it in a location where unauthorized persons might access it.</li>
+            <li>Backup your passwords with the backup utility provided and store securely.</li>
+            <li>You can restore your backups using the csv upload button.</li>
+        </ul>
+        <p>Using our backup utility, your passwords will be encrypted using AES256 in a 7zip archive. Keep safe.</p>
+    </div>
+    {% else %}
+    <div class="container-login">
+        <form action="/login2fa" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input autocomplete="off" type="text" name="otp" placeholder="Enter 2FA Code" required>
+        <div class="checkbox">
+            <label>
+                <input type="checkbox" name="remember_me"> Remember this device
+            </label>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+    <div>
+    {% endif %}
 </div>
 {% endblock %}

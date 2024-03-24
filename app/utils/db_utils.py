@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from app.utils.pylockr_logging import PyLockrLogs
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, TIMESTAMP, inspect
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, TIMESTAMP, inspect, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func
@@ -37,6 +37,7 @@ class User(Base):
     username = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(300), nullable=False)
     otp_2fa_enc = Column(String(255), nullable=False)
+    initial_setup = Column(Boolean, nullable=False, default=True)
     passwords = relationship("Password", back_populates="user")
     backup_history = relationship("BackupHistory", back_populates="user")
 
@@ -58,13 +59,17 @@ class BackupHistory(Base):
     user_id = Column(String(255), ForeignKey('users.id'), nullable=False)
     user = relationship("User", back_populates="backup_history")  # This establishes a relationship with the User model
 
-#init_db()
 
-#def set_up_bk_up_dir():
-#    BACKUP_DIR = os.environ.get('BACKUP_DIR', '/usr/src/app/backup')
-#    backup_path = Path(BACKUP_DIR)
-#    backup_path.mkdir(parents=True, exist_ok=True)
-#    print(f"Backup directory is set at: {backup_path.absolute()}")
+def update_initial_setup(username)-> bool:
+    with Session() as session:
+        user = session.query(User).filter_by(username=username).first()
+        if user:
+            user.initial_setup = False
+            session.commit()
+            logger.info(f'{username} Completed initial setup')
+            return True
+        else:
+            return False
 
 
 def add_user(username, password):
@@ -72,7 +77,11 @@ def add_user(username, password):
     user_id = str(uuid.uuid4())
     hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
     encrypted_otp = encrypt_data(pyotp.random_base32())
-    new_user = User(id=user_id, username=username, password_hash=hashed_password, otp_2fa_enc=encrypted_otp)
+    new_user = User(id=user_id,
+                    username=username,
+                    password_hash=hashed_password,
+                    otp_2fa_enc=encrypted_otp,
+                    initial_setup=True)
     session = Session()
     try:
         session.add(new_user)
