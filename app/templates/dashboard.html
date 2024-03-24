@@ -11,7 +11,7 @@
         <form class="backup-form" id="backupForm" method="POST" action="/backup">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label for="backupPassword">Backup to 7zip. Enter Password:</label>
-            <input type="password" id="backupPassword" name="backupPassword" required>
+            <input autocomplete="new-password" type="password" id="backupPassword" name="backupPassword" required>
             <button type="submit">Create Backup</button>
         </form>
         {% if reminder_needed %}
