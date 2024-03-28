@@ -6,10 +6,12 @@ services:
     ports:
       - "5000:5000"
     volumes:
+      - .:/usr/src/app
       - ./config/ssl/ca-cert.pem:/usr/src/app/ssl/ca-cert.pem
       - ./config/ssl/client-cert.pem:/usr/src/app/ssl/client-cert.pem
       - ./config/ssl/client-key.pem:/usr/src/app/ssl/client-key.pem
     environment:
+      - FLASK_ENV=development
       - SESSION_TIMEOUT=30
       - MIN_PASSWORD_LENGTH=10
     env_file:

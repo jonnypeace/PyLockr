@@ -6,3 +6,5 @@ config/cnf
 config/keys
 config/ssl
 config/nginx/ssl
+*.pem
+*.log
