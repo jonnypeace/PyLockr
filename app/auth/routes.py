@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 from . import auth
-from flask import render_template, request, redirect, url_for, session, flash, current_app, make_response
+from flask import render_template, request, redirect, url_for, session, flash, current_app, make_response, g, jsonify
 import re,secrets, os
-from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, update_initial_setup
+from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, update_initial_setup, retrieve_edek
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
@@ -69,11 +69,30 @@ class Logout(MethodView):
         return redirect(url_for('main.home'))
 auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
+
+class Authenticate(MethodView):
+    def post(self):
+        data = request.get_json()
+        username = sanitizer.sanitize(data['username'])
+        hashed_password = data['password']
+        # Verification logic here...
+        user = authenticate_user(username, hashed_password)
+        session['temp_user_id'] = user.id # Needed for 2FA and storing dek in redis
+        if user:
+            # Assuming get_user_edek_iv is a function that retrieves the EDEK and IV for the user
+            user = retrieve_edek(username=username)
+            return jsonify({'encryptedDEK': user.edek, 'iv': user.iv}), 200
+        else:
+            return jsonify({'message': 'Authentication failed'}), 403
+
+auth.add_url_rule('/authenticate', view_func=Authenticate.as_view('authenticate'))
+
+
 class Login(MethodView):
     decorators = [limiter.limit("7 per minute")]
     def get(self):
         # Render the template as usual
-        return render_template('login.html')
+        return render_template('login.html', nonce=g.nonce)
 
     def post(self):
         '''
@@ -82,10 +101,13 @@ class Login(MethodView):
         '''
         
         username = sanitizer.sanitize(request.form['username'])
-        password = request.form['password']
+        hashed_password = request.form['password']
+        
+        logger.info(hashed_password)
         
         requested_ip = get_remote_address()
-        user = authenticate_user(username, password)
+        user = authenticate_user(username, hashed_password)
+
         if user:
             session['temp_user_id'] = user.id # Needed for 2FA
             session['username'] = user.username
@@ -155,25 +177,22 @@ auth.add_url_rule('/change_user_password', view_func=ChangeUserPass.as_view('cha
 
 class SignUP(MethodView):
     def get(self):
-        return render_template('signup.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
+        return render_template('signup.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'], nonce=g.nonce)
     
     def post(self):
         
         username = sanitizer.sanitize(request.form['username'])
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
+        hashed_password = request.form['hashed_password']
+        encrypted_dek_b64 = request.form['encryptedDEK']
+        iv_b64 = request.form['iv']
 
-        if password != confirm_password:
-            logger.warning(f'Signup Failed, passwords do not match: Username {username}')
-            flash('Passwords do not match. Please try again.', 'alert alert-error')
-            return redirect(url_for('auth.signup'))
-        
-        # Password complexity check
-        if not is_password_complex(password):
-            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'alert alert-error')
-            return redirect(url_for('auth.signup'))
+        # Decode the Base64 encoded eDEK and IV
+        # encrypted_dek = base64.b64decode(encrypted_dek_b64)
+        # iv = base64.b64decode(iv_b64)
 
-        if add_user(username, password):
+        # Store the encrypted DEK and IV securely in the user's account record
+        # Assume a function `create_user_account` that handles this.
+        if add_user(username, hashed_password, encrypted_dek_b64, iv_b64):
             flash('User successfully registered.', 'alert alert-ok')
             return redirect(url_for('main.home'))
         else:
