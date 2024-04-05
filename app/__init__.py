@@ -94,8 +94,9 @@ def create_app():
     @app.before_request
     def check_csrf_token():
         # Only perform CSRF check for POST requests
-        if request.method == "POST" and not request.endpoint in ['auth.logout', 'main.decrypt_password']:
-            submitted_token = request.form.get('csrf_token')
+        # if request.method == "POST" and not request.endpoint in ['auth.logout', 'main.decrypt_password']:
+        if request.method == "POST" and not request.endpoint in ['auth.logout']:
+            submitted_token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
             # Verify CSRF token
             if not submitted_token or submitted_token != session.get('csrf_token'):
                 abort(403)  # CSRF token is invalid
