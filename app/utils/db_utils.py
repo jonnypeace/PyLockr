@@ -178,32 +178,32 @@ def decrypt_data(encrypted_data):
 ##### Handling Dek Encryption and Decryption #####
 
 
-def encrypt_data(data, dek_b64):
-    # Decode the DEK from Base64
-    dek = base64.b64decode(dek_b64)
-    aesgcm = AESGCM(dek)
-    # For AESGCM, an IV should be 12 bytes long and unique for each encryption
-    iv = AESGCM.generate_iv(12)
-    # Encrypt the data. AESGCM requires bytes, so ensure `data` is bytes
-    encrypted_data = aesgcm.encrypt(iv, data.encode(), None)
-    # Return the IV and encrypted data, both encoded in Base64 for storage or transmission
-    return base64.b64encode(iv), base64.b64encode(encrypted_data)
+# def encrypt_data(data, dek_b64):
+#     # Decode the DEK from Base64
+#     dek = base64.b64decode(dek_b64)
+#     aesgcm = AESGCM(dek)
+#     # For AESGCM, an IV should be 12 bytes long and unique for each encryption
+#     iv = AESGCM.generate_iv(12)
+#     # Encrypt the data. AESGCM requires bytes, so ensure `data` is bytes
+#     encrypted_data = aesgcm.encrypt(iv, data.encode(), None)
+#     # Return the IV and encrypted data, both encoded in Base64 for storage or transmission
+#     return base64.b64encode(iv), base64.b64encode(encrypted_data)
 
-def decrypt_data(encrypted_data_b64, iv_b64, dek_b64):
-    # Decode the IV, encrypted data, and DEK from Base64
-    iv = base64.b64decode(iv_b64)
-    encrypted_data = base64.b64decode(encrypted_data_b64)
-    dek = base64.b64decode(dek_b64)
-    aesgcm = AESGCM(dek)
-    # Decrypt the data
-    data = aesgcm.decrypt(iv, encrypted_data, None)
-    # Return the decrypted data as a string
-    return data.decode()
+# def decrypt_data(encrypted_data_b64, iv_b64, dek_b64):
+#     # Decode the IV, encrypted data, and DEK from Base64
+#     iv = base64.b64decode(iv_b64)
+#     encrypted_data = base64.b64decode(encrypted_data_b64)
+#     dek = base64.b64decode(dek_b64)
+#     aesgcm = AESGCM(dek)
+#     # Decrypt the data
+#     data = aesgcm.decrypt(iv, encrypted_data, None)
+#     # Return the decrypted data as a string
+#     return data.decode()
 
 # Encrypt data
-iv_b64, encrypted_data_b64 = encrypt_data("Hello, world!", dek_b64)
+# iv_b64, encrypted_data_b64 = encrypt_data("Hello, world!", dek_b64)
 
 # Decrypt data
-decrypted_data = decrypt_data(encrypted_data_b64, iv_b64, dek_b64)
-print(decrypted_data)  # Output: "Hello, world!"
+# decrypted_data = decrypt_data(encrypted_data_b64, iv_b64, dek_b64)
+# print(decrypted_data)  # Output: "Hello, world!"
 
