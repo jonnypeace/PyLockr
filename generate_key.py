@@ -24,6 +24,7 @@ def generate_keys():
         APP_SECRET_KEY='{generate_secret_key(32)}'
         FERNET_KEY='{fernet_decoded_key}'
         REDIS_PASSWORD='{generate_password(32)}'
+        REDIS_LIMITER_PASSWORD='{generate_password(32)}'
         MYSQL_ROOT='{generate_password(32)}'
         MYSQL_PASSWORD='{generate_password(32)}'
         GPG_PASSPHRASE='{generate_password(32)}'

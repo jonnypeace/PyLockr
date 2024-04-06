@@ -68,3 +68,5 @@ printf "mariadb --user=<username> --password=<password> --host=<host> --port=<po
 --ssl-cert=$DB_SSL_DIR/client-cert.pem \\
 --ssl-key=$DB_SSL_DIR/client-key.pem \\
 --database=<database>\n"
+
+echo "these certifcates can be used with redis to secure connections as well. Include them in the docker-compose.yaml for secure communication"
