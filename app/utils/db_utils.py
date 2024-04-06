@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func
 from pathlib import Path
-import os, uuid, logging, pyotp, base64
+import os, uuid, logging, pyotp, base64, redis
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import IntegrityError
@@ -178,27 +178,28 @@ def decrypt_data(encrypted_data):
 ##### Handling Dek Encryption and Decryption #####
 
 
-# def encrypt_data(data, dek_b64):
-#     # Decode the DEK from Base64
-#     dek = base64.b64decode(dek_b64)
-#     aesgcm = AESGCM(dek)
-#     # For AESGCM, an IV should be 12 bytes long and unique for each encryption
-#     iv = AESGCM.generate_iv(12)
-#     # Encrypt the data. AESGCM requires bytes, so ensure `data` is bytes
-#     encrypted_data = aesgcm.encrypt(iv, data.encode(), None)
-#     # Return the IV and encrypted data, both encoded in Base64 for storage or transmission
-#     return base64.b64encode(iv), base64.b64encode(encrypted_data)
+def encrypt_data_dek(data, dek_b64):
+    # Decode the DEK from Base64
+    dek = base64.b64decode(dek_b64)
+    aesgcm = AESGCM(dek)
+    # For AESGCM, an IV should be 12 bytes long and unique for each encryption
+    # iv = AESGCM.generate_iv(12)
+    iv = os.urandom(12)
+    # Encrypt the data. AESGCM requires bytes, so ensure `data` is bytes
+    encrypted_data = aesgcm.encrypt(iv, data.encode(), None)
+    # Return the IV and encrypted data, both encoded in Base64 for storage or transmission
+    return base64.b64encode(iv), base64.b64encode(encrypted_data)
 
-# def decrypt_data(encrypted_data_b64, iv_b64, dek_b64):
-#     # Decode the IV, encrypted data, and DEK from Base64
-#     iv = base64.b64decode(iv_b64)
-#     encrypted_data = base64.b64decode(encrypted_data_b64)
-#     dek = base64.b64decode(dek_b64)
-#     aesgcm = AESGCM(dek)
-#     # Decrypt the data
-#     data = aesgcm.decrypt(iv, encrypted_data, None)
-#     # Return the decrypted data as a string
-#     return data.decode()
+def decrypt_data_dek(encrypted_data_b64, iv_b64, dek_b64):
+    # Decode the IV, encrypted data, and DEK from Base64
+    iv = base64.b64decode(iv_b64)
+    encrypted_data = base64.b64decode(encrypted_data_b64)
+    dek = base64.b64decode(dek_b64)
+    aesgcm = AESGCM(dek)
+    # Decrypt the data
+    data = aesgcm.decrypt(iv, encrypted_data, None)
+    # Return the decrypted data as a string
+    return data.decode()
 
 # Encrypt data
 # iv_b64, encrypted_data_b64 = encrypt_data("Hello, world!", dek_b64)
@@ -207,3 +208,56 @@ def decrypt_data(encrypted_data):
 # decrypted_data = decrypt_data(encrypted_data_b64, iv_b64, dek_b64)
 # print(decrypted_data)  # Output: "Hello, world!"
 
+
+class RedisComms:
+    '''
+    RedisComms
+    ----------
+    Get and Send to Redis using TLS communication.
+    '''
+    def __init__(self):
+        # Path to your certificate files
+        ca_cert = os.environ.get('SSL_CA')
+        client_cert = os.environ.get('SSL_CERT')
+        client_key = os.environ.get('SSL_KEY')
+        password = os.environ.get('REDIS_PASSWORD')
+
+        try:
+            # Create a Redis connection with TLS
+            self.redis_client = redis.Redis(
+                host='redis-dek',
+                port=6379,
+                password=password,
+                ssl=True,
+                ssl_ca_certs=ca_cert,
+                ssl_certfile=client_cert,
+                ssl_keyfile=client_key,
+                decode_responses=True
+            )
+
+            # Test the connection
+            self.redis_client.ping()
+            logger.info("Connected to Redis with TLS successfully.")
+
+        except redis.ConnectionError as e:
+            logger.error(f"Failed to connect to Redis: {e}")
+        
+    def get_dek(self, user_id):
+        try:
+            dek = self.redis_client.get(f"user:{user_id}:dek")
+            if dek:
+                print("DEK retrieved:", dek)
+                return dek
+            else:
+                print("DEK not found.")
+                return None
+        except Exception as e:
+            print(f"Error retrieving DEK: {e}")
+            return None
+
+    def send_dek(self, user_id, dek):
+        try:
+            self.redis_client.set(f"user:{user_id}:dek", dek, ex=1800)  # Expires in 30mins
+            print("DEK sent successfully.")
+        except Exception as e:
+            print(f"Error sending DEK: {e}")

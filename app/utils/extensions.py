@@ -5,7 +5,7 @@ import os
 '''
 Sets up redis with rate limiting
 '''
-redis_password: str = os.environ.get('REDIS_PASSWORD')
+redis_password: str = os.environ.get('REDIS_LIMITER_PASSWORD')
 
 if redis_password:
     # Instantiate Limiter without passing the app
@@ -14,4 +14,4 @@ if redis_password:
         storage_uri=f"redis://:{redis_password}@redis:6379"
     )
 else:
-    raise OSError('REDIS_PASSWORD not set in .env file')
+    raise OSError('REDIS_LIMITER_PASSWORD not set in .env file')

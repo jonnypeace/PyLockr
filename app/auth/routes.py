@@ -77,8 +77,8 @@ class Authenticate(MethodView):
         hashed_password = data['password']
         # Verification logic here...
         user = authenticate_user(username, hashed_password)
-        session['temp_user_id'] = user.id # Needed for 2FA and storing dek in redis
         if user:
+            session['temp_user_id'] = user.id # Needed for 2FA and storing dek in redis
             # Assuming get_user_edek_iv is a function that retrieves the EDEK and IV for the user
             user = retrieve_edek(username=username)
             return jsonify({'encryptedDEK': user.edek, 'iv': user.iv}), 200

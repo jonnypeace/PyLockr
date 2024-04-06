@@ -14,7 +14,8 @@ sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
 
 # Initialize Redis connection
-redis_client = redis.Redis(host='redis', port=6379, password=os.environ['REDIS_PASSWORD'], decode_responses=True)
+# redis_client = redis.Redis(host='redis', port=6379, password=os.environ['REDIS_PASSWORD'], decode_responses=True)
+redis_client = RedisComms()
 
 class BaseAuthenticatedView(MethodView):
     '''
@@ -161,26 +162,18 @@ main.add_url_rule('/get_user_edek_iv', view_func=GetEdekIV.as_view('get_user_ede
 #######################################################################
 
 class SendDek(MethodView):
+    '''
+    Sends dek from client to redis server
+    '''
     def post(self):
         user_id = session.get('temp_user_id')
         data = request.get_json()
         if user_id:
             # Assuming `data['dek']` is how you access the DEK in your JSON payload
-            redis_client.set(f"user:{user_id}:dek", data['dek'], ex=1800)  # Expires in 30mins
+            redis_client.send_dek(user_id, data['dek'])
             return jsonify({"message": "Session data stored."}), 200
         return jsonify({"message": "No user session."}), 400
 main.add_url_rule('/send_dek', view_func=SendDek.as_view('send_dek'))
-
-# This still needs some work. Doesn't need to be a route, but the redis command i'll need.
-def retrieve_session_data():
-    user_id = session.get('user_id')
-    if user_id:
-        # Retrieve user-specific session data
-        dek = redis_client.get(f"user:{user_id}:dek")
-        if dek:
-            return f"Retrieved DEK: {dek}"
-        return "Session data not found."
-    return "No user session."
 
 #########################################################################
 
@@ -197,10 +190,12 @@ class AddPassword(BaseAuthenticatedView):
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
         # encrypted_password = encrypt_data(request.form['password'])
-        iv = request.form['iv']
         category = sanitizer.sanitize(request.form['category'])
         encrypted_notes = encrypt_data(request.form['notes'])
-        encrypted_password_b64 = request.form['password']
+        password = request.form['password']
+
+        dek_b64 = redis_client.get_dek(session['user_id'])
+        iv_b64, dek_password_b64 = encrypt_data_dek(password, dek_b64)
 
         # Define maximum lengths
         max_length_name = 50
@@ -219,8 +214,8 @@ class AddPassword(BaseAuthenticatedView):
             user_id=session['user_id'],  # Ensure this is set correctly in your session
             name=name,
             username=username,
-            encrypted_password=encrypted_password_b64,
-            iv_password=iv,
+            encrypted_password=dek_password_b64,
+            iv_password=iv_b64,
             category=category,
             notes=encrypted_notes
         )
@@ -291,7 +286,7 @@ class DeletePassword(BaseAuthenticatedView):
 
         return redirect(url_for('main.retrieve_passwords'))
 
-main.add_url_rule('/delete_password/<int:password_id>', view_func=DeletePassword.as_view('delete_password'))
+main.add_url_rule('/delete_password/<string:password_id>', view_func=DeletePassword.as_view('delete_password'))
 
 class DeleteMultiplePasswords(BaseAuthenticatedView):
     def post(self):
@@ -331,8 +326,10 @@ class EditPassword(BaseAuthenticatedView):
         # Fetch the password entry to be edited
         password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
         
+        dek_b64 = redis_client.get_dek(session['user_id'])
+        
         if password_entry:
-            decrypted_password = decrypt_data(password_entry.encrypted_password)
+            decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
             decrypted_notes = decrypt_data(password_entry.notes)
             return render_template('edit_password.html', name=password_entry.name, username=password_entry.username, password=decrypted_password,
                                    notes=decrypted_notes, category=password_entry.category, nonce=g.nonce) # password_data=password_entry, don't think i need this.
@@ -344,9 +341,12 @@ class EditPassword(BaseAuthenticatedView):
         
         name = sanitizer.sanitize(request.form['name'])
         username = sanitizer.sanitize(request.form['username'])
-        encrypted_password = encrypt_data(request.form['password'])
+        # encrypted_password = encrypt_data(request.form['password'])
         category = sanitizer.sanitize(request.form['category'])
         encrypted_notes = encrypt_data(request.form['notes'])
+
+        dek_b64 = redis_client.get_dek(session['user_id'])
+        iv_b64, dek_password_b64 = encrypt_data_dek(request.form['password'], dek_b64)
 
         # Define maximum lengths
         max_length_name = 50
@@ -363,7 +363,8 @@ class EditPassword(BaseAuthenticatedView):
             if password_entry:
                 password_entry.name = name
                 password_entry.username = username
-                password_entry.encrypted_password = encrypted_password
+                password_entry.encrypted_password = dek_password_b64
+                password_entry.iv_password = iv_b64
                 password_entry.category = category
                 password_entry.notes = encrypted_notes
                 Session.commit()
@@ -380,7 +381,7 @@ class EditPassword(BaseAuthenticatedView):
         return redirect(url_for('main.retrieve_passwords'))
 
 # Register the view
-main.add_url_rule('/edit_password/<int:password_id>', view_func=EditPassword.as_view('edit_password'))
+main.add_url_rule('/edit_password/<string:password_id>', view_func=EditPassword.as_view('edit_password'))
 
 class DecryptPassword(BaseAuthenticatedView):
     def post(self, password_id):
@@ -392,7 +393,6 @@ class DecryptPassword(BaseAuthenticatedView):
         # if not submitted_token or submitted_token != session.get('csrf_token'):
         #     flash('CSRF token is invalid.', 'alert alert-error')
         #     return jsonify({'error': 'CSRF token is invalid.'}), 403
-        
         try:
             password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
         finally:
@@ -400,14 +400,15 @@ class DecryptPassword(BaseAuthenticatedView):
         if password_entry and password_entry.encrypted_password:
             # Decrypt the password
             # decrypted_password = decrypt_data(password_entry.encrypted_password)
-            encrypted_password = password_entry.encrypted_password
-            return jsonify({'password': encrypted_password}) # Send the decrypted password back
+            dek_b64 = redis_client.get_dek(session['user_id'])
+            decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
+            return jsonify({'password': decrypted_password}) # Send the decrypted password back
         else:
             current_ip = get_remote_address()
             logger.error(f'Issue encountered with user trying to use copy to clipboard: IP {current_ip}')
             abort(403)  # Use Flask's abort for HTTP error codes
     
-main.add_url_rule('/decrypt_password/<int:password_id>', view_func=DecryptPassword.as_view('decrypt_password'))
+main.add_url_rule('/decrypt_password/<string:password_id>', view_func=DecryptPassword.as_view('decrypt_password'))
 
 class Backup(BaseAuthenticatedView):
     '''
