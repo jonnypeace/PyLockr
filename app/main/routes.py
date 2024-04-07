@@ -68,8 +68,9 @@ class UploadCSV(BaseAuthenticatedView):
         try:
             headers = next(csv_reader)
             row_index_dict = self.check_indexes(headers)
+            dek_b64 = redis_client.get_dek(session['user_id'])
             for row in csv_reader:
-                self.insert_password_row(db_session, row, row_index_dict)
+                self.insert_password_row(db_session, row, row_index_dict, dek_b64)
             db_session.commit()
         except csv.Error as e:
             db_session.rollback()
@@ -97,12 +98,15 @@ class UploadCSV(BaseAuthenticatedView):
                     break
         return row_dict
 
-    def insert_password_row(self, db_session, row, row_index_dict):
+    def insert_password_row(self, db_session, row, row_index_dict, dek_b64):
+        iv_b64, enc_pass_b64 = encrypt_data_dek(row[row_index_dict['password']], dek_b64)
+        alt_iv_b64, alt_enc_pass_b64 = encrypt_data_dek('', dek_b64) # for cols that don't exist
         password_entry = Password(
             user_id=session['user_id'],
             name=sanitizer.sanitize(row[row_index_dict['name']]) if row_index_dict['name'] != -1 else '',
             username=sanitizer.sanitize(row[row_index_dict['username']]) if row_index_dict['username'] != -1 else '',
-            encrypted_password=encrypt_data(row[row_index_dict['password']]) if row_index_dict['password'] != -1 else encrypt_data(''),
+            encrypted_password=enc_pass_b64 if row_index_dict['password'] != -1 else alt_enc_pass_b64,
+            iv_password=iv_b64 if row_index_dict['password'] != -1 else alt_iv_b64,
             category=sanitizer.sanitize(row[row_index_dict.get('category')]) if row_index_dict.get('category') != -1 else '',
             notes=encrypt_data(row[row_index_dict['notes']]) if row_index_dict['notes'] != -1 else encrypt_data('')
         )
@@ -388,18 +392,11 @@ class DecryptPassword(BaseAuthenticatedView):
         '''
         Decrypt the passwords from database, this is used for copy to clipboard button
         '''
-        # submitted_token = request.headers.get('csrf_token')
-        # submitted_token = request.headers.get('X-CSRFToken')
-        # if not submitted_token or submitted_token != session.get('csrf_token'):
-        #     flash('CSRF token is invalid.', 'alert alert-error')
-        #     return jsonify({'error': 'CSRF token is invalid.'}), 403
         try:
             password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
         finally:
             Session.close()
         if password_entry and password_entry.encrypted_password:
-            # Decrypt the password
-            # decrypted_password = decrypt_data(password_entry.encrypted_password)
             dek_b64 = redis_client.get_dek(session['user_id'])
             decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
             return jsonify({'password': decrypted_password}) # Send the decrypted password back
