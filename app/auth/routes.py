@@ -3,7 +3,7 @@
 from . import auth
 from flask import render_template, request, redirect, url_for, session, flash, current_app, make_response, g, jsonify
 import re,secrets, os
-from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, update_initial_setup, retrieve_edek
+from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, update_initial_setup, retrieve_edek, validate_hashed_password, RedisComms
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
@@ -15,6 +15,8 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature
 logger = PyLockrLogs(name='Auth')
 
 sanitizer = Sanitizer()  # Used for name and username
+
+redis_client: RedisComms = RedisComms()
 
 class CookieIntegrityError(Exception):
     """Exception raised when the integrity of a cookie is compromised."""
@@ -37,22 +39,22 @@ def is_password_complex(password):
         return False
     return True
 
-def set_remember_me_cookie(remember_me, response):
+def set_remember_me_cookie(remember_me, response, user_id):
     s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
     token = s.dumps({'remember_me': remember_me})
     https_safe = current_app.config['SESSION_COOKIE_SECURE']
-    response.set_cookie('remember_me', token, max_age=30*24*3600, httponly=True, secure=https_safe, samesite='Strict')
+    response.set_cookie(user_id, token, max_age=30*24*3600, httponly=True, secure=https_safe, samesite='Strict')
     return response
 
-def check_remember_me_cookie():
-    remember_me_cookie = request.cookies.get('remember_me', None)
+def check_remember_me_cookie(user_id):
+    remember_me_cookie = request.cookies.get(user_id, None)
     if remember_me_cookie:
         s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
         try:
             data = s.loads(remember_me_cookie)
-            cookie_status = data.get('remember_me', None)
-            if cookie_status is None:
-                raise CookieIntegrityError("Invalid 'remember_me' value in cookie.")
+            if 'remember_me' not in data:
+                raise CookieIntegrityError("Invalid 'pylockr_remember_me' cookie data.")
+            cookie_status = data['remember_me']
             return cookie_status
         except BadSignature:
             logger.error(f'Cookie has a bad signature, and potentially been tampered with')
@@ -114,7 +116,7 @@ class Login(MethodView):
             session['2fa_otp'] = user.otp_2fa_enc
             session['initial_setup'] = user.initial_setup
             try:
-                session['remember_me'] = check_remember_me_cookie()
+                session['remember_me'] = check_remember_me_cookie(user.id)
             except CookieIntegrityError as CIE:
                 logger.error(f'Cookie Does not contain remember_me field.\n{CIE}')
             if session['remember_me']:
@@ -145,26 +147,31 @@ class ChangeUserPass(MethodView):
 
     def post(self):
         
-        current_password = request.form['current_password']
-        new_password = request.form['new_password']
-        confirm_new_password = request.form['confirm_new_password']
+        current_password = request.form['current_password'] # needs to be hashed
+        new_password = request.form['new_password'] # needs to be hashed
+        confirm_new_password = request.form['confirm_new_password'] # needs to be hashed
+        dek = request.form['dek']
+        edek = request.form['encryptedDEK']
+        iv = request.form['iv']
+
         requested_ip = get_remote_address()
         username = session.get('username')
 
         # Password complexity check
-        if not is_password_complex(new_password):
-            flash(f'Password must be at least {current_app.config["MIN_PASSWORD_LENGTH"]} characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'alert alert-error')
+        if not validate_hashed_password(new_password):
+            flash(f'Passwords have failed security checks', 'alert alert-error')
             return redirect(url_for('auth.change_user_password'))
 
         # New passwords match check
         if new_password != confirm_new_password:
-            logger.warning(f'Passwords Did Not Match during password change: IP {requested_ip}')
+            logger.warning(f'Passwords Did Not Match during password change: IP: {requested_ip} Username: {username}')
             flash('New passwords do not match.', 'alert alert-error')
             return redirect(url_for('auth.change_user_password'))
 
         # Attempt to update the user's password
         try:
-            if update_user_password(username, current_password, new_password):
+            if update_user_password(username, current_password, new_password, edek, iv):
+                redis_client.send_dek(session['user_id'], dek)
                 flash('Password successfully updated.', 'alert alert-ok')
                 return redirect(url_for('main.dashboard'))
         except Exception as e:
@@ -182,17 +189,26 @@ class SignUP(MethodView):
     def post(self):
         
         username = sanitizer.sanitize(request.form['username'])
-        hashed_password = request.form['hashed_password']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
         encrypted_dek_b64 = request.form['encryptedDEK']
         iv_b64 = request.form['iv']
+        requested_ip = get_remote_address()
 
-        # Decode the Base64 encoded eDEK and IV
-        # encrypted_dek = base64.b64decode(encrypted_dek_b64)
-        # iv = base64.b64decode(iv_b64)
+        # Password complexity check
+        if not validate_hashed_password(password):
+            flash(f'Passwords have failed security checks', 'alert alert-error')
+            return redirect(url_for('auth.change_user_password'))
+
+        # New passwords match check
+        if password != confirm_password:
+            logger.warning(f'Passwords Did Not Match during signup: IP: {requested_ip} Username: {username}')
+            flash('Passwords do not match.', 'alert alert-error')
+            return redirect(url_for('auth.change_user_password'))
 
         # Store the encrypted DEK and IV securely in the user's account record
         # Assume a function `create_user_account` that handles this.
-        if add_user(username, hashed_password, encrypted_dek_b64, iv_b64):
+        if add_user(username, password, encrypted_dek_b64, iv_b64):
             flash('User successfully registered.', 'alert alert-ok')
             return redirect(url_for('main.home'))
         else:
@@ -224,7 +240,7 @@ class Login2FA(MethodView):
         if pyotp.TOTP(decrypt_data(session['2fa_otp'])).verify(otp):
             remember_me = 'remember_me' in request.form
             response = redirect(url_for('main.dashboard'))
-            response = set_remember_me_cookie(remember_me, response)
+            response = set_remember_me_cookie(remember_me, response, session['temp_user_id'])
             session['user_id'] = session.pop('temp_user_id', None)
             if session['user_id'] is not None:
                 flash('Authentication Successful', 'alert alert-ok')
