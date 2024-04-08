@@ -8,7 +8,6 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="encryptedDEK">
         <input type="hidden" name="iv">
-        <input type="hidden" name="hashed_password">
         <input type="text" name="username" placeholder="Username" required>
         <input type="password" name="password" placeholder="Password" minlength="{{ min_password_length }}" required>
         <input type="password" name="confirm_password" minlength="{{ min_password_length }}"

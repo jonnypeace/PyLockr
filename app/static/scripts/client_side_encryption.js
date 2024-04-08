@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
                 try {
                     const hashedPassword = await hashPassword(password);
+                    const hashedConfirmPassword = await hashPassword(confirmPassword);
                     const { encryptedDEK, iv } = await generateAndEncryptDEK(password);
 
                     // Convert the ArrayBuffer to Base64
@@ -60,11 +61,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     // Populate the hidden fields
                     document.querySelector('input[name="encryptedDEK"]').value = encryptedDEKBase64;
                     document.querySelector('input[name="iv"]').value = ivBase64;
-                    document.querySelector('input[name="hashed_password"]').value = hashedPassword;
                     document.querySelector('input[name="username"]').value = username;
                     // Before submitting the form programmatically, clear the password fields
-                    document.querySelector('input[name="password"]').value = '';
-                    document.querySelector('input[name="confirm_password"]').value = '';
+                    document.querySelector('input[name="password"]').value = hashedPassword;
+                    document.querySelector('input[name="confirm_password"]').value = hashedConfirmPassword;
             
                     // Indicate that the form is being submitted by this script
                     isFormSubmitted = true;
