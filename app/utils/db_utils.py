@@ -128,7 +128,7 @@ def authenticate_user(username, hashed_password):
     session.close()
     return False
 
-def update_user_password(username, current_password, new_password):
+def update_user_password(username, current_password, new_password, edek, iv):
     '''Update the specified user's password.'''
     session = Session()
     try:
@@ -138,6 +138,8 @@ def update_user_password(username, current_password, new_password):
             # Update password hash
             new_password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
             user.password_hash = new_password_hash
+            user.edek = edek
+            user.iv = iv
             session.commit()
             logger.info(f'User successfully changed password for username: {username}')
             return True
@@ -201,6 +203,34 @@ def decrypt_data_dek(encrypted_data_b64, iv_b64, dek_b64):
     # Return the decrypted data as a string
     return data.decode()
 
+import re
+
+def validate_hashed_password(hashed_password):
+    """Validate the hashed password received from the client.
+    
+    Args:
+        hashed_password (str): The hashed password to validate.
+    
+    Returns:
+        bool: True if the hashed password is valid, False otherwise.
+    """
+    # Define the regex pattern for a valid SHA-256 hash
+    pattern = re.compile('^[a-f0-9]{64}$')
+    
+    # Check if the hashed password matches the pattern
+    if pattern.match(hashed_password):
+        return True
+    else:
+        return False
+
+# # Example usage
+# hashed_password = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  # Example SHA-256 hash
+# if validate_hashed_password(hashed_password):
+#     print("Hashed password is valid.")
+# else:
+#     print("Hashed password is invalid.")
+
+
 # Encrypt data
 # iv_b64, encrypted_data_b64 = encrypt_data("Hello, world!", dek_b64)
 
@@ -261,3 +291,14 @@ class RedisComms:
             print("DEK sent successfully.")
         except Exception as e:
             print(f"Error sending DEK: {e}")
+
+    def extend_dek_ttl(self, user_id):
+        try:
+            # Check if the DEK exists before extending the TTL
+            if self.redis_client.exists(f"user:{user_id}:dek"):
+                self.redis_client.expire(f"user:{user_id}:dek", 1800)  # Reset TTL to 30 mins
+                print("DEK TTL extended.")
+            else:
+                print("DEK does not exist, no TTL to extend.")
+        except Exception as e:
+            print(f"Error extending DEK TTL: {e}")
