@@ -13,18 +13,31 @@ from sqlalchemy.exc import SQLAlchemyError
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
 
-# Initialize Redis connection
-# redis_client = redis.Redis(host='redis', port=6379, password=os.environ['REDIS_PASSWORD'], decode_responses=True)
-redis_client = RedisComms()
-
 class BaseAuthenticatedView(MethodView):
     '''
     if user_id is not in session, redirect to home/login page
     '''
+    redis_client = RedisComms()  # Initialize your Redis communication class
+    
     def dispatch_request(self, *args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('main.home'))
+        
+        # If user_id is in session, extend DEK TTL in Redis
+        self.extend_dek_ttl(session['user_id'])
         return super(BaseAuthenticatedView, self).dispatch_request(*args, **kwargs)
+
+    def extend_dek_ttl(self, user_id):
+        '''
+        Extend the TTL for the user's DEK in Redis.
+        '''
+        # This assumes your RedisComms class has a method to extend DEK TTL
+        # Modify this method based on your RedisComms implementation
+        try:
+            self.redis_client.extend_dek_ttl(user_id)
+        except Exception as e:
+            print(f"Error extending DEK TTL for user {user_id}: {e}")
+            # Handle the error as appropriate for your application
 
 class UploadCSV(BaseAuthenticatedView):
     """
@@ -68,7 +81,7 @@ class UploadCSV(BaseAuthenticatedView):
         try:
             headers = next(csv_reader)
             row_index_dict = self.check_indexes(headers)
-            dek_b64 = redis_client.get_dek(session['user_id'])
+            dek_b64 = self.redis_client.get_dek(session['user_id'])
             for row in csv_reader:
                 self.insert_password_row(db_session, row, row_index_dict, dek_b64)
             db_session.commit()
@@ -174,6 +187,7 @@ class SendDek(MethodView):
         data = request.get_json()
         if user_id:
             # Assuming `data['dek']` is how you access the DEK in your JSON payload
+            redis_client = RedisComms()  # Initialize your Redis communication class
             redis_client.send_dek(user_id, data['dek'])
             return jsonify({"message": "Session data stored."}), 200
         return jsonify({"message": "No user session."}), 400
@@ -198,7 +212,7 @@ class AddPassword(BaseAuthenticatedView):
         encrypted_notes = encrypt_data(request.form['notes'])
         password = request.form['password']
 
-        dek_b64 = redis_client.get_dek(session['user_id'])
+        dek_b64 = self.redis_client.get_dek(session['user_id'])
         iv_b64, dek_password_b64 = encrypt_data_dek(password, dek_b64)
 
         # Define maximum lengths
@@ -330,7 +344,7 @@ class EditPassword(BaseAuthenticatedView):
         # Fetch the password entry to be edited
         password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
         
-        dek_b64 = redis_client.get_dek(session['user_id'])
+        dek_b64 = self.redis_client.get_dek(session['user_id'])
         
         if password_entry:
             decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
@@ -349,7 +363,7 @@ class EditPassword(BaseAuthenticatedView):
         category = sanitizer.sanitize(request.form['category'])
         encrypted_notes = encrypt_data(request.form['notes'])
 
-        dek_b64 = redis_client.get_dek(session['user_id'])
+        dek_b64 = self.redis_client.get_dek(session['user_id'])
         iv_b64, dek_password_b64 = encrypt_data_dek(request.form['password'], dek_b64)
 
         # Define maximum lengths
@@ -397,7 +411,7 @@ class DecryptPassword(BaseAuthenticatedView):
         finally:
             Session.close()
         if password_entry and password_entry.encrypted_password:
-            dek_b64 = redis_client.get_dek(session['user_id'])
+            dek_b64 = self.redis_client.get_dek(session['user_id'])
             decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
             return jsonify({'password': decrypted_password}) # Send the decrypted password back
         else:
@@ -423,12 +437,13 @@ class Backup(BaseAuthenticatedView):
             return redirect(url_for('main.dashboard'))
 
         user_id = session['user_id']  # Ensure flask_session is imported correctly
+        dek = self.redis_client.get_dek(user_id)
 
         try:
             password_entries = Session.query(Password).filter_by(user_id=user_id).all()
             # Insert a record into backup_history
             # Prepare decrypted data for CSV
-            decrypted_data = [[entry.name, entry.username, decrypt_data(entry.encrypted_password), entry.category, decrypt_data(entry.notes)] for entry in password_entries]
+            decrypted_data = [[entry.name, entry.username, decrypt_data_dek(entry.encrypted_password, entry.iv_password, dek), entry.category, decrypt_data(entry.notes)] for entry in password_entries]
             new_backup_history = BackupHistory(user_id=user_id)  # Include user_id here
             Session.add(new_backup_history)
             Session.commit()
