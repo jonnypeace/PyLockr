@@ -156,7 +156,7 @@ def update_user_password(username, current_password, new_password, edek, iv):
     finally:
         session.close()
         
-def encrypt_data(data):
+def encrypt_data(data, encoder=True):
     '''
     Encrypts notes and passwords for the password manager.
 
@@ -164,9 +164,11 @@ def encrypt_data(data):
     on top of the SQLCipher database encryption. The encrypted data is stored
     in the SQLCipher-encrypted database, effectively double-encrypting it.
     '''
-    return current_app.config['CIPHER_SUITE'].encrypt(data.encode())
+    if encoder:
+        data = data.encode()
+    return current_app.config['CIPHER_SUITE'].encrypt(data)
 
-def decrypt_data(encrypted_data):
+def decrypt_data(encrypted_data, decoder=True):
     '''
     Decrypts passwords and notes for the password manager.
 
@@ -175,14 +177,17 @@ def decrypt_data(encrypted_data):
     is decrypted by Fernet first, then automatically decrypted by SQLCipher
     as it's read from the database, reversing the double encryption process.
     '''
-    return current_app.config['CIPHER_SUITE'].decrypt(encrypted_data).decode()
+    data = current_app.config['CIPHER_SUITE'].decrypt(encrypted_data)
+    if decoder:
+        data = data.decode()
+    return data
 
 ##### Handling Dek Encryption and Decryption #####
 
 
-def encrypt_data_dek(data, dek_b64):
+def encrypt_data_dek(data, dek):
     # Decode the DEK from Base64
-    dek = base64.b64decode(dek_b64)
+    # dek = base64.b64decode(dek_b64)
     aesgcm = AESGCM(dek)
     # For AESGCM, an IV should be 12 bytes long and unique for each encryption
     # iv = AESGCM.generate_iv(12)
@@ -192,11 +197,11 @@ def encrypt_data_dek(data, dek_b64):
     # Return the IV and encrypted data, both encoded in Base64 for storage or transmission
     return base64.b64encode(iv), base64.b64encode(encrypted_data)
 
-def decrypt_data_dek(encrypted_data_b64, iv_b64, dek_b64):
+def decrypt_data_dek(encrypted_data_b64, iv_b64, dek):
     # Decode the IV, encrypted data, and DEK from Base64
     iv = base64.b64decode(iv_b64)
     encrypted_data = base64.b64decode(encrypted_data_b64)
-    dek = base64.b64decode(dek_b64)
+    # dek = base64.b64decode(dek_b64)
     aesgcm = AESGCM(dek)
     # Decrypt the data
     data = aesgcm.decrypt(iv, encrypted_data, None)
@@ -222,21 +227,6 @@ def validate_hashed_password(hashed_password):
         return True
     else:
         return False
-
-# # Example usage
-# hashed_password = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  # Example SHA-256 hash
-# if validate_hashed_password(hashed_password):
-#     print("Hashed password is valid.")
-# else:
-#     print("Hashed password is invalid.")
-
-
-# Encrypt data
-# iv_b64, encrypted_data_b64 = encrypt_data("Hello, world!", dek_b64)
-
-# Decrypt data
-# decrypted_data = decrypt_data(encrypted_data_b64, iv_b64, dek_b64)
-# print(decrypted_data)  # Output: "Hello, world!"
 
 
 class RedisComms:
@@ -274,31 +264,95 @@ class RedisComms:
         
     def get_dek(self, user_id):
         try:
-            dek = self.redis_client.get(f"user:{user_id}:dek")
+            enc_dek = self.redis_client.get(f"user:{user_id}:dek")
+            dek = decrypt_data(enc_dek, decoder=False) # It's ok to be b64 encoded. Password manager will decode
+            dek = base64.b64decode(dek)
             if dek:
-                print("DEK retrieved:", dek)
                 return dek
             else:
-                print("DEK not found.")
+                logger.warning("DEK not found.")
                 return None
         except Exception as e:
-            print(f"Error retrieving DEK: {e}")
+            logger.error(f"Error retrieving DEK: {e}")
             return None
 
     def send_dek(self, user_id, dek):
         try:
-            self.redis_client.set(f"user:{user_id}:dek", dek, ex=1800)  # Expires in 30mins
-            print("DEK sent successfully.")
+            logger.info(f'{user_id=} {dek=}')
+            b64_dek = base64.b64encode(dek)
+            logger.info(f'{b64_dek=}')
+            enc_dek = encrypt_data(b64_dek, encoder=False)
+            self.redis_client.set(f"user:{user_id}:dek", enc_dek, ex=1800)  # Expires in 30mins
+            logger.info("DEK sent successfully.")
         except Exception as e:
-            print(f"Error sending DEK: {e}")
+            logger.error(f"Error sending DEK: {e}")
+
+    def get_secret(self, user_id):
+        try:
+            # logger.info(f'{user_id=}')
+            enc_shared_secret = self.redis_client.get(f"user:{user_id}:sharedSecret")
+            # logger.info(f'{enc_shared_secret=}')
+            decrypted_Secret = decrypt_data(enc_shared_secret, decoder=False)
+            # logger.info(f'{decrypted_Secret=}')
+            shared_secret = base64.b64decode(decrypted_Secret)
+            if shared_secret:
+                return shared_secret
+            else:
+                logger.warning("SharedSecret not found.")
+                return None
+        except Exception as e:
+            logger.error(f"Error retrieving Shared_secret: {e}")
+            return None
+
+    def send_secret(self, user_id, shared_secret):
+        try:
+            b64_secret = base64.b64encode(shared_secret)
+            # logger.info(f'{b64_secret=}')
+            enc_secret = encrypt_data(b64_secret, encoder=False)
+            self.redis_client.set(f"user:{user_id}:sharedSecret", enc_secret, ex=1800)  # Expires in 30mins
+            logger.info("Shared Secret sent successfully.")
+        except Exception as e:
+            logger.error(f"Error sending Shared Secret: {e}")
+
+    def get_salt(self, user_id):
+        try:
+            enc_salt = self.redis_client.get(f"user:{user_id}:salt")
+            salt = base64.b64decode(decrypt_data(enc_salt, decoder=False))
+            salt = base64.b64decode(salt.decode())
+            logger.info(f'{salt=}')
+            if salt:
+                return salt
+            else:
+                logger.warning("salt not found.")
+                return None
+        except Exception as e:
+            logger.error(f"Error retrieving salt: {e}")
+            return None
+        
+    def send_salt(self, user_id, salt):
+        try:
+            
+            b64_salt = base64.b64encode(salt.encode())
+            logger.info(f'{b64_salt=}')
+            enc_salt = encrypt_data(b64_salt, encoder=False)
+            self.redis_client.set(f"user:{user_id}:salt", enc_salt, ex=1800)  # Expires in 30mins
+            logger.info("Salt sent successfully.")
+        except Exception as e:
+            logger.error(f"Error sending Salt: {e}")
+
+    def delete_secret(self, user_id):
+        self.redis_client.delete(f"user:{user_id}:sharedSecret")
+
+    def delete_salt(self, user_id):
+        self.redis_client.delete(f"user:{user_id}:salt")
 
     def extend_dek_ttl(self, user_id):
         try:
             # Check if the DEK exists before extending the TTL
             if self.redis_client.exists(f"user:{user_id}:dek"):
                 self.redis_client.expire(f"user:{user_id}:dek", 1800)  # Reset TTL to 30 mins
-                print("DEK TTL extended.")
+                logger.info("DEK TTL extended.")
             else:
-                print("DEK does not exist, no TTL to extend.")
+                logger.warning("DEK does not exist, no TTL to extend.")
         except Exception as e:
-            print(f"Error extending DEK TTL: {e}")
+            logger.error(f"Error extending DEK TTL: {e}")
