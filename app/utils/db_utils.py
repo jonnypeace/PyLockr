@@ -278,9 +278,7 @@ class RedisComms:
 
     def send_dek(self, user_id, dek):
         try:
-            logger.info(f'{user_id=} {dek=}')
             b64_dek = base64.b64encode(dek)
-            logger.info(f'{b64_dek=}')
             enc_dek = encrypt_data(b64_dek, encoder=False)
             self.redis_client.set(f"user:{user_id}:dek", enc_dek, ex=1800)  # Expires in 30mins
             logger.info("DEK sent successfully.")
@@ -289,11 +287,8 @@ class RedisComms:
 
     def get_secret(self, user_id):
         try:
-            # logger.info(f'{user_id=}')
             enc_shared_secret = self.redis_client.get(f"user:{user_id}:sharedSecret")
-            # logger.info(f'{enc_shared_secret=}')
             decrypted_Secret = decrypt_data(enc_shared_secret, decoder=False)
-            # logger.info(f'{decrypted_Secret=}')
             shared_secret = base64.b64decode(decrypted_Secret)
             if shared_secret:
                 return shared_secret
@@ -307,7 +302,6 @@ class RedisComms:
     def send_secret(self, user_id, shared_secret):
         try:
             b64_secret = base64.b64encode(shared_secret)
-            # logger.info(f'{b64_secret=}')
             enc_secret = encrypt_data(b64_secret, encoder=False)
             self.redis_client.set(f"user:{user_id}:sharedSecret", enc_secret, ex=1800)  # Expires in 30mins
             logger.info("Shared Secret sent successfully.")
@@ -319,7 +313,6 @@ class RedisComms:
             enc_salt = self.redis_client.get(f"user:{user_id}:salt")
             salt = base64.b64decode(decrypt_data(enc_salt, decoder=False))
             salt = base64.b64decode(salt.decode())
-            logger.info(f'{salt=}')
             if salt:
                 return salt
             else:
@@ -333,7 +326,6 @@ class RedisComms:
         try:
             
             b64_salt = base64.b64encode(salt.encode())
-            logger.info(f'{b64_salt=}')
             enc_salt = encrypt_data(b64_salt, encoder=False)
             self.redis_client.set(f"user:{user_id}:salt", enc_salt, ex=1800)  # Expires in 30mins
             logger.info("Salt sent successfully.")
