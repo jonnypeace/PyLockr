@@ -12,10 +12,71 @@ async function hashPassword(password) {
     return hashHex;
 }
 
+async function authenticateUser(username, password, csrfToken) {
+    const authResponse = await fetch('/authenticate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken // Include CSRF token in the request headers
+        },
+        body: JSON.stringify({username: username, password: password}),
+    });
+    const { encryptedDEK, iv } = await authResponse.json();
+    if (!authResponse.ok) {
+        throw new Error('Authentication failed');
+    }
+    return { encryptedDEK: encryptedDEK, iv: iv };
+}
+
+async function keyExchangeShare(publicKey, privateKey, salt, saltB64, dek, info, csrfToken) {
+    // send public key and salt to server for shared secret discovery
+    const confirmResponse = await fetch('/keyexchange', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({publicKey: publicKey, salt: saltB64}),
+    });
+    if (confirmResponse.ok) {
+        // If the HTTP status code is 200-299
+        const responseData = await confirmResponse.json();
+        const serverPublicKeyB64 = await responseData.serverPublicKey;
+        const serverPublicKey = await importServerPublicKey(serverPublicKeyB64);
+        const sharedSecret = await getSharedSecret(privateKey, serverPublicKey);
+        const aesKey = await deriveAESKeyFromSharedSecret(sharedSecret.sharedSecret, salt, info);
+        const { encryptedDEK, iv} = await reEncryptDEKWithSharedSecret(aesKey, dek);
+        const edekBase64 = arrayBufferToBase64(encryptedDEK);
+        const ivB64 = arrayBufferToBase64(iv);
+        finalReponse = await finalExchange(edekBase64, ivB64, csrfToken);
+        return finalReponse;
+    } else {
+        // Handle errors or unsuccessful responses
+        console.error("Failed to exchange keys:", await confirmResponse.text());
+    }
+}
+
+async function finalExchange(edekBase64, ivB64, csrfToken){
+    const finalResponse = await fetch('/secretprocessing', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({edekBase64: edekBase64, ivB64: ivB64}),
+    });
+    if (!finalResponse.ok) {
+        console.error("Failed to process secrets:", await finalResponse.text());
+    }
+    return finalResponse.ok;
+}
+
+///////////////////
+
+
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('loginForm');
     // Assume csrf_token is available either as a hidden input field in the form or set elsewhere
-    const csrfToken = document.querySelector('input[name="csrf_token"]').value; 
 
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -23,20 +84,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const usernameField = form.querySelector('input[name="username"]');
         const passwordField = form.querySelector('input[name="password"]');
         const hashedPassword = await hashPassword(passwordField.value);
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
 
         try {
-            const authResponse = await fetch('/authenticate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken // Include CSRF token in the request headers
-                },
-                body: JSON.stringify({username: usernameField.value, password: hashedPassword}),
-            });
-            const { encryptedDEK, iv } = await authResponse.json();
-            if (!authResponse.ok) {
-                throw new Error(authData.message || 'Authentication failed');
-            }
+            const { encryptedDEK, iv } = await authenticateUser(usernameField.value, hashedPassword, csrfToken)
             // Convert from Base64 to ArrayBuffer before passing to decryptDEK
             const encryptedDEKArrayBuffer = base64ToArrayBuffer(encryptedDEK);
             const ivArrayBuffer = base64ToArrayBuffer(iv);
@@ -46,51 +97,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const { publicKey, privateKey } = await keyPairGenerate();
             const salt = window.crypto.getRandomValues(new Uint8Array(16));
             const saltB64 = window.btoa(String.fromCharCode.apply(null, salt));
-
-            // send public key and salt to server for shared secret discovery
-            const confirmResponse = await fetch('/keyexchange', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken // Include CSRF token here as well
-                },
-                body: JSON.stringify({publicKey: publicKey, salt: saltB64}),
-            });
-
-            if (confirmResponse.ok) {
-                // If the HTTP status code is 200-299
-                const responseData = await confirmResponse.json();
-                const serverPublicKeyB64 = await responseData.serverPublicKey;
-                const serverPublicKey = await importServerPublicKey(serverPublicKeyB64);
-                const sharedSecret = await getSharedSecret(privateKey, serverPublicKey);
-                const aesKey = await deriveAESKeyFromSharedSecret(sharedSecret.sharedSecret, salt, info);
-                const { encryptedDEK, iv} = await reEncryptDEKWithSharedSecret(aesKey, dek);
-                const edekBase64 = arrayBufferToBase64(encryptedDEK);
-                const ivB64 = arrayBufferToBase64(iv);
-
-                const finalResponse = await fetch('/secretprocessing', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({edekBase64: edekBase64, ivB64: ivB64}),
-                });
-                if (!finalResponse.ok) {
-                    console.error("Failed to process secrets:", await finalResponse.text());
-                }
-    
-            } else {
-                // Handle errors or unsuccessful responses
-                console.error("Failed to exchange keys:", await confirmResponse.text());
-            }
-
-            // Modify the form's action if needed, or keep it as is if it's already set to the /login endpoint
-            try {
+            finalResponse = await keyExchangeShare(publicKey, privateKey, salt, saltB64, dek, info, csrfToken);
+            if (finalResponse) {
                 // Assuming your async operations are successful...
                 passwordField.value = hashedPassword
                 form.submit(); // Proceed with traditional form submission
-            } catch (error) {
+            }
+            else {
                 console.error('An error occurred:', error);
                 // Handle the error, display feedback to the user
             }
@@ -217,7 +230,6 @@ async function deriveAESKeyFromSharedSecret(sharedSecret, salt, info) {
         false, // Whether the key is extractable
         ["deriveKey"] // Specify the use for key derivation
     );
-    console.log('sharedSecretKey imported as cryptokey for hkdf')
 
     // Derive the AES key using HKDF
     const aesKey = await window.crypto.subtle.deriveKey(
