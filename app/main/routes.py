@@ -9,6 +9,7 @@ import re, os, csv, py7zr, time, io, csv, secrets, base64, redis
 from flask_limiter.util import get_remote_address
 from threading import Thread
 from sqlalchemy.exc import SQLAlchemyError
+from app.utils.extensions import limiter
 
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
@@ -18,6 +19,7 @@ class BaseAuthenticatedView(MethodView):
     if user_id is not in session, redirect to home/login page
     '''
     redis_client = RedisComms()  # Initialize your Redis communication class
+    decorators = [limiter.limit("7 per minute")]
     
     def dispatch_request(self, *args, **kwargs):
         if 'user_id' not in session:
@@ -161,6 +163,7 @@ class Dashboard(BaseAuthenticatedView):
 main.add_url_rule('/dashboard', view_func=Dashboard.as_view('dashboard'))
 
 class GetEdekIV(MethodView):
+    decorators = [limiter.limit("7 per minute")]
     def post(self):
         # Attempt to retrieve the user's eDEK and IV using the provided username
         user = retrieve_edek(username=session['username'])
@@ -182,6 +185,7 @@ class SendDek(MethodView):
     '''
     Sends dek from client to redis server
     '''
+    decorators = [limiter.limit("7 per minute")]
     def post(self):
         user_id = session.get('temp_user_id')
         data = request.get_json()
