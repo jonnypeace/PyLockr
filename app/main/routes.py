@@ -162,42 +162,6 @@ class Dashboard(BaseAuthenticatedView):
 
 main.add_url_rule('/dashboard', view_func=Dashboard.as_view('dashboard'))
 
-class GetEdekIV(MethodView):
-    decorators = [limiter.limit("7 per minute")]
-    def post(self):
-        # Attempt to retrieve the user's eDEK and IV using the provided username
-        user = retrieve_edek(username=session['username'])
-        logger.info(user.username)
-        if user:
-            return jsonify({
-                'encryptedDEK': base64.b64encode(user.edek).decode('utf-8'), 
-                'iv': base64.b64encode(user.iv).decode('utf-8')
-            })
-        else:
-            return jsonify({'error': 'User not found'}), 404
-
-# Register the route for handling the AJAX request
-main.add_url_rule('/get_user_edek_iv', view_func=GetEdekIV.as_view('get_user_edek_iv'))
-
-#######################################################################
-
-class SendDek(MethodView):
-    '''
-    Sends dek from client to redis server
-    '''
-    decorators = [limiter.limit("7 per minute")]
-    def post(self):
-        user_id = session.get('temp_user_id')
-        data = request.get_json()
-        if user_id:
-            # Assuming `data['dek']` is how you access the DEK in your JSON payload
-            redis_client = RedisComms()  # Initialize your Redis communication class
-            redis_client.send_dek(user_id, data['dek'])
-            return jsonify({"message": "Session data stored."}), 200
-        return jsonify({"message": "No user session."}), 400
-main.add_url_rule('/send_dek', view_func=SendDek.as_view('send_dek'))
-
-#########################################################################
 
 class AddPassword(BaseAuthenticatedView):
     '''
