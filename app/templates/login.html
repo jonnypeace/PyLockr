@@ -15,5 +15,5 @@
         Don't have an account? <a href="{{ url_for('auth.signup') }}">Sign Up</a>
     </p>
 </div>
-<script nonce="{{ nonce }}" src="{{ url_for('static', filename='scripts/login.js') }}"></script>
+<script nonce="{{ nonce }}" type="module" src="{{ url_for('static', filename='scripts/login.js') }}"></script>
 {% endblock %}
