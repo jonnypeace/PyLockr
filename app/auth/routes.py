@@ -24,7 +24,7 @@ logger = PyLockrLogs(name='Auth')
 
 sanitizer = Sanitizer()  # Used for name and username
 
-redis_client: RedisComms = RedisComms()
+# redis_client: RedisComms = RedisComms()
 
 class CookieIntegrityError(Exception):
     """Exception raised when the integrity of a cookie is compromised."""
@@ -69,6 +69,38 @@ def check_remember_me_cookie(user_id):
             return False
     return False
 
+class BaseAuthView(MethodView):
+    '''
+    if user_id is not in session, redirect to home/login page
+    '''
+    decorators = [limiter.limit("7 per minute")]
+    
+    def __init__(self):
+        self.redis_client = RedisComms()  # Initialize your Redis communication class
+    
+    def dispatch_request(self, *args, **kwargs):
+        user_id = session.get('user_id') or session.get('temp_user_id')
+
+        if user_id is None:
+            return redirect(url_for('main.home'))
+        
+        # If user_id is in session, extend DEK TTL in Redis
+        self.extend_dek_ttl(user_id)
+        return super(BaseAuthView, self).dispatch_request(*args, **kwargs)
+
+    def extend_dek_ttl(self, user_id):
+        '''
+        Extend the TTL for the user's DEK in Redis.
+        '''
+        # This assumes your RedisComms class has a method to extend DEK TTL
+        # Modify this method based on your RedisComms implementation
+        try:
+            self.redis_client.extend_dek_ttl(user_id)
+        except Exception as e:
+            logger.error(f"Error extending DEK TTL for user {user_id}: {e}")
+            # Handle the error as appropriate for your application
+
+
 class Logout(MethodView):
     def post(self):
         '''
@@ -78,6 +110,50 @@ class Logout(MethodView):
         flash('You have been logged out.', 'alert alert-ok')
         return redirect(url_for('main.home'))
 auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
+
+
+class GetEdekIV(BaseAuthView):
+    '''
+    Pull in client public key, iv and salt, generate a server key pair, and encrypt the dek stored in redis to send back.
+    '''
+    def post(self):
+        try:
+            # Attempt to retrieve the user's eDEK and IV using the provided username
+            user_id = session.get('user_id') or session.get('temp_user_id')
+            data = request.get_json()
+            dek = self.redis_client.get_dek(user_id)
+            salt = base64.b64decode(data['salt'])
+            shared_secret, server_public_key_b64 = shared_secret_exchange(data['publicKey'])
+            kek = derive_aes_key_from_shared_secret(shared_secret, salt)
+            iv = base64.b64decode(data['iv'])
+            # Create an AESGCM instance with the KEK
+            aesgcm = AESGCM(kek)
+            # Encrypt the DEK
+            edek = aesgcm.encrypt(iv, dek, None)
+            edek_b64 = base64.b64encode(edek).decode()
+            logger.info(f'{edek_b64=}, {server_public_key_b64}')
+            return jsonify({'edek': edek_b64, 'serverPubKeyB64': server_public_key_b64}), 200
+        except Exception as e:
+            logger.error(e)
+            return jsonify({'error': 'Key Error'}), 404
+
+# Register the route for handling the AJAX request
+auth.add_url_rule('/get_user_edek_iv', view_func=GetEdekIV.as_view('get_user_edek_iv'))
+
+
+class SendDek(BaseAuthView):
+    '''
+    Sends dek from client to redis server
+    '''
+    def post(self):
+        super().__init__()
+        user_id = session.get('temp_user_id')
+        data = request.get_json()
+        if user_id:
+            self.redis_client.send_dek(user_id, data['dek'])
+            return jsonify({"message": "Session data stored."}), 200
+        return jsonify({"message": "No user session."}), 400
+auth.add_url_rule('/send_dek', view_func=SendDek.as_view('send_dek'))
 
 
 class Authenticate(MethodView):
@@ -98,36 +174,37 @@ class Authenticate(MethodView):
 
 auth.add_url_rule('/authenticate', view_func=Authenticate.as_view('authenticate'))
 
-class KeyExchange(MethodView):
-    decorators = [limiter.limit("7 per minute")]
+def shared_secret_exchange(client_public_key_b64):
+    # Load the client's public key from the request
+    client_public_key_bytes = base64.b64decode(client_public_key_b64)
+    client_public_key = load_der_public_key(client_public_key_bytes, backend=default_backend())
+
+    # Generate the server's private and public key for ECDH
+    server_private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+    server_public_key = server_private_key.public_key()
+
+    # Serialize the server's public key to send it back to the client
+    server_public_key_der = server_public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    server_public_key_b64 = base64.b64encode(server_public_key_der).decode('utf-8')
+
+    # Derive the shared secret using the client's public key and server's private key 
+    shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+    return shared_secret, server_public_key_b64
+
+class KeyExchange(BaseAuthView):
     def post(self):
-        if 'temp_user_id' not in session:  # temp_user_id should be in session after authentication
-            return redirect(url_for('main.home'))
-
         data = request.get_json()
+        super().__init__()
         try:
-            # Load the client's public key from the request
-            client_public_key_bytes = base64.b64decode(data['publicKey'])
-            client_public_key = load_der_public_key(client_public_key_bytes, backend=default_backend())
-
-            # Generate the server's private and public key for ECDH
-            server_private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
-            server_public_key = server_private_key.public_key()
-
-            # Serialize the server's public key to send it back to the client
-            server_public_key_der = server_public_key.public_bytes(
-                encoding=serialization.Encoding.DER,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-            server_public_key_b64 = base64.b64encode(server_public_key_der).decode('utf-8')
-
-            ######## DO SOMETHING WITH THIS SHARED SECRET #########
-            # Derive the shared secret using the client's public key and server's private key 
-            shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
+            shared_secret, server_public_key_b64 = shared_secret_exchange(data['publicKey'])
+            user_id = session.get('user_id') or session.get('temp_user_id')
 
             # This sends to redis, storing after encrypting with the fernet key
-            redis_client.send_secret(session['temp_user_id'], shared_secret)
-            redis_client.send_salt(session['temp_user_id'], data['salt'])
+            self.redis_client.send_secret(user_id, shared_secret)
+            self.redis_client.send_salt(user_id, data['salt'])
             # Return the server's public key to the client
             return jsonify({'serverPublicKey': server_public_key_b64})
         
@@ -150,16 +227,13 @@ def derive_aes_key_from_shared_secret(shared_secret, salt):
     aes_key = hkdf.derive(shared_secret)
     return aes_key
     
-class SharedSecretDecrypt(MethodView):
-    decorators = [limiter.limit("7 per minute")]
+class SharedSecretDecrypt(BaseAuthView):
     def post(self):
-        if 'temp_user_id' not in session:  # temp_user_id should be in session after authentication
-            return redirect(url_for('main.home'))
-
-       
+        super().__init__()
         try:
-            shared_secret = redis_client.get_secret(session['temp_user_id'])
-            salt = redis_client.get_salt(session['temp_user_id'])
+            user_id = session.get('user_id') or session.get('temp_user_id')
+            shared_secret = self.redis_client.get_secret(user_id)
+            salt = self.redis_client.get_salt(user_id)
             kek = derive_aes_key_from_shared_secret(shared_secret, salt)
 
             data = request.get_json()
@@ -171,10 +245,10 @@ class SharedSecretDecrypt(MethodView):
             # Decrypt the EDEK
             dek = aesgcm.decrypt(iv, encrypted_edek, None)
             # This sends to redis, storing after encrypting with the fernet key
-            redis_client.send_dek(session['temp_user_id'], dek)
+            self.redis_client.send_dek(user_id, dek)
             # Clean up the Redis by removing the shared secret and salt
-            redis_client.delete_secret(session['temp_user_id'])
-            redis_client.delete_salt(session['temp_user_id'])
+            self.redis_client.delete_secret(user_id)
+            self.redis_client.delete_salt(user_id)
 
             return jsonify({'success': 'key exchange successful'}), 200
 
@@ -194,7 +268,7 @@ class Login(MethodView):
     def post(self):
         '''
         Logs into website and starts a session.
-        Rate limited, 5 per minute.
+        Rate limited, 7 per minute.
         '''
         
         username = sanitizer.sanitize(request.form['username'])
@@ -231,12 +305,11 @@ class Login(MethodView):
 
 auth.add_url_rule('/login', view_func=Login.as_view('login'))
 
-class ChangeUserPass(MethodView):
+class ChangeUserPass(BaseAuthView):
     '''
     Changes user password for loging into website, and checks for upper/lowercase special character and number, and password length.
     Default minimum password length is 12.
     '''
-    decorators = [limiter.limit("7 per minute")]
     def get(self):
         # Render the template as usual
         return render_template('change_user_password.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
@@ -267,7 +340,7 @@ class ChangeUserPass(MethodView):
         # Attempt to update the user's password
         try:
             if update_user_password(username, current_password, new_password, edek, iv):
-                redis_client.send_dek(session['user_id'], dek)
+                self.redis_client.send_dek(session['user_id'], dek)
                 flash('Password successfully updated.', 'alert alert-ok')
                 return redirect(url_for('main.dashboard'))
         except Exception as e:
@@ -295,13 +368,13 @@ class SignUP(MethodView):
         # Password complexity check
         if not validate_hashed_password(password):
             flash(f'Passwords have failed security checks', 'alert alert-error')
-            return redirect(url_for('auth.change_user_password'))
+            return redirect(url_for('auth.signup'))
 
         # New passwords match check
         if password != confirm_password:
             logger.warning(f'Passwords Did Not Match during signup: IP: {requested_ip} Username: {username}')
             flash('Passwords do not match.', 'alert alert-error')
-            return redirect(url_for('auth.change_user_password'))
+            return redirect(url_for('auth.signup'))
 
         # Store the encrypted DEK and IV securely in the user's account record
         # Assume a function `create_user_account` that handles this.
@@ -315,8 +388,7 @@ class SignUP(MethodView):
         
 auth.add_url_rule('/signup', view_func=SignUP.as_view('signup'))
 
-class Login2FA(MethodView):
-    decorators = [limiter.limit("7 per minute")]
+class Login2FA(BaseAuthView):
     def get(self):
         if session['initial_setup']:
             url = pyotp.totp.TOTP(decrypt_data(session['2fa_otp'])).provisioning_uri(session['username'], issuer_name="PyLockr")
