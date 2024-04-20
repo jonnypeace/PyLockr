@@ -52,11 +52,11 @@ class Password(Base):
     user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
     name = Column(String(256))
     username = Column(String(256))
-    encrypted_password = Column(BLOB)
-    iv_password = Column(LargeBinary)
+    encrypted_password = Column(String(41)) # b64 direct from js. decodes into crypto
+    iv_password = Column(String(16)) # b64 direct from js. decodes into bytes
     category = Column(String(256))
     notes = Column(String(4096))
-    # iv_notes = Column(LargeBinary)
+    # iv_notes = Column(String(16)) # b64 direct from js. decodes into bytes
     user = relationship("User", back_populates="passwords")
 
 class BackupHistory(Base):

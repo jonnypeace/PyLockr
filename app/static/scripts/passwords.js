@@ -60,21 +60,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const kek = await deriveAESKeyFromSharedSecret(sharedSecret.sharedSecret, salt, info) 
                 const dekArrayBuffer = await decryptDEKWithSharedSecret(kek, data.edek, iv);
                 const dek = await importAesKeyFromBuffer(dekArrayBuffer);
-                const { encryptedData, ivPass } = await encryptStringWithAesGcm(dek, passwordField.value)
-                console.log(`${encryptedData}`); // SUCCESS UP TO THIS POINT!! Needs converted to B64 and sent to server
+                const { encryptedData: arrPassword, iv: ivArrPass } = await encryptStringWithAesGcm(dek, passwordField.value)
+                console.log("arrPassword= ", `${arrPassword}`);
+                console.log("arrIV= ", `${ivArrPass}`);
+                const b64Password = arrayBufferToBase64(arrPassword);
+                const b64IV = arrayBufferToBase64(ivArrPass);
+                passwordField.value = b64Password;
+                form.querySelector('input[name="ivPass"]').value = b64IV;  // SUCCESS UP TO THIS POINT!! Now it just needs handled by the server
                 isFormSubmitted = true;
-                // form.submit();
+                form.submit();
             }
         }}
     )}
 );
-
-
-function encryptData(data, edek, iv) {
-    console.log(`Encrypting data using EDEK: ${edek} and IV: ${iv}`);
-    // Your encryption logic here
-}
-
 
 async function getEdek(publicKey, saltB64, csrfToken, iv) {
     const ivB64 = arrayBufferToBase64(iv)

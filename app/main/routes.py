@@ -14,6 +14,17 @@ from app.utils.extensions import limiter
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
 
+def is_valid_base64(s):
+    try:
+        # Attempt to decode the string from Base64
+        # The string must be bytes or ASCII string, so we ensure it's bytes
+        base64.b64decode(s)
+        return True
+    except (ValueError, TypeError):
+        # A ValueError is raised if the string is incorrectly padded
+        # A TypeError occurs if the input is not a bytes or ASCII string
+        return False
+
 class BaseAuthenticatedView(MethodView):
     '''
     if user_id is not in session, redirect to home/login page
@@ -178,10 +189,15 @@ class AddPassword(BaseAuthenticatedView):
         # encrypted_password = encrypt_data(request.form['password'])
         category = sanitizer.sanitize(request.form['category'])
         encrypted_notes = encrypt_data(request.form['notes'])
-        password = request.form['password']
+        # password = request.form['password']
 
-        dek_b64 = self.redis_client.get_dek(session['user_id'])
-        iv_b64, dek_password_b64 = encrypt_data_dek(password, dek_b64)
+        # dek_b64 = self.redis_client.get_dek(session['user_id'])
+        # iv_b64, dek_password_b64 = encrypt_data_dek(password, dek_b64)
+
+        iv_b64 = request.form['ivPass']
+        iv_b64_decode = base64.b64decode(iv_b64)
+        password_b64 = request.form['password']
+        # logger.info(f'{iv_b64=} and {password_b64=} and {iv_b64_decode=}')
 
         # Define maximum lengths
         max_length_name = 50
@@ -200,12 +216,11 @@ class AddPassword(BaseAuthenticatedView):
             user_id=session['user_id'],  # Ensure this is set correctly in your session
             name=name,
             username=username,
-            encrypted_password=dek_password_b64,
+            encrypted_password=password_b64,
             iv_password=iv_b64,
             category=category,
             notes=encrypted_notes
         )
-        
         db_session = Session()
         try:
             db_session.add(new_password_entry)
