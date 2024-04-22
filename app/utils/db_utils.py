@@ -52,7 +52,7 @@ class Password(Base):
     user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
     name = Column(String(256))
     username = Column(String(256))
-    encrypted_password = Column(String(41)) # b64 direct from js. decodes into crypto
+    encrypted_password = Column(String(128)) # b64 direct from js. decodes into crypto
     iv_password = Column(String(16)) # b64 direct from js. decodes into bytes
     category = Column(String(256))
     notes = Column(String(4096))
@@ -63,7 +63,7 @@ class BackupHistory(Base):
     __tablename__ = 'backup_history'
     id = Column(Integer, primary_key=True)
     backup_date = Column(TIMESTAMP, default=func.current_timestamp())
-    user_id = Column(String(256), ForeignKey('users.id'), nullable=False)
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
     user = relationship("User", back_populates="backup_history")  # This establishes a relationship with the User model
 
 
