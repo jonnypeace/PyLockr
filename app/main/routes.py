@@ -5,7 +5,7 @@ from flask import current_app, render_template, request, redirect, url_for, sess
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView
-import re, os, csv, py7zr, time, io, csv, secrets, base64, redis
+import re, os, csv, py7zr, time, io, csv, secrets, base64, redis, binascii
 from flask_limiter.util import get_remote_address
 from threading import Thread
 from sqlalchemy.exc import SQLAlchemyError
@@ -14,16 +14,32 @@ from app.utils.extensions import limiter
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
 
-def is_valid_base64(s):
+class ValidB64Error(Exception):
+    """Exception raised when the integrity of received base64 string is compromised."""
+    def __init__(self, message="Base64 check failed"):
+        self.message = message
+        super().__init__(self.message)
+
+def is_valid_base64(*args):
+    """Validate multiple Base64 encoded strings.
+
+    Args:
+        *args: Variable length argument list of strings to be validated as Base64.
+
+    Returns:
+        bool: True if all strings are valid Base64.
+
+    Raises:
+        ValidB64Error: If any string is not valid Base64.
+    """
     try:
-        # Attempt to decode the string from Base64
-        # The string must be bytes or ASCII string, so we ensure it's bytes
-        base64.b64decode(s)
+        for s in args:
+            # Attempt to decode the string from Base64
+            base64.b64decode(s, validate=True)
         return True
-    except (ValueError, TypeError):
-        # A ValueError is raised if the string is incorrectly padded
-        # A TypeError occurs if the input is not a bytes or ASCII string
-        return False
+    except (ValueError, TypeError, binascii.Error) as e:
+        # Raising an exception with more context about the failure
+        raise ValidB64Error(f"Base64 check failed: {e}")
 
 class BaseAuthenticatedView(MethodView):
     '''
@@ -195,10 +211,17 @@ class AddPassword(BaseAuthenticatedView):
         # iv_b64, dek_password_b64 = encrypt_data_dek(password, dek_b64)
 
         iv_b64 = request.form['ivPass']
-        iv_b64_decode = base64.b64decode(iv_b64)
+        # iv_b64_decode = base64.b64decode(iv_b64) # This is needed for decoding, but redundant for client side encryption.
         password_b64 = request.form['password']
-        # logger.info(f'{iv_b64=} and {password_b64=} and {iv_b64_decode=}')
+        # logger.info(f'{iv_b64=} and {password_b64=}')
 
+        try:
+            is_valid_base64(iv_b64, password_b64)
+        except ValidB64Error as e:
+            logger.warning(f'{session['user_id']}: Failed B64 Validation: {e}')
+            flash('Error: B64 Validation Error', 'alert alert-error')
+            return redirect(url_for('main.add_password'))
+            
         # Define maximum lengths
         max_length_name = 50
         max_length_username = 50
