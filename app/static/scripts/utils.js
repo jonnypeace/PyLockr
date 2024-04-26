@@ -114,7 +114,7 @@ async function deriveAESKeyFromSharedSecret(sharedSecret, salt, info) {
         false, // Whether the key is extractable
         ["deriveKey"] // Specify the use for key derivation
     );
-    console.log(`${sharedSecretKey}`)
+    // console.log(`${sharedSecretKey}`)
     // Derive the AES key using HKDF
     const aesKey = await window.crypto.subtle.deriveKey(
         {
