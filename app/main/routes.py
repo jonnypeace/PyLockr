@@ -324,11 +324,8 @@ class DeleteMultiplePasswords(BaseAuthenticatedView):
         selected_passwords = request.form.getlist('selected_passwords')
 
         try:
-            # Use filter() to handle deletion in a single query for efficiency
-            # Convert selected_passwords to a list of integers if they're not already
-            selected_password_ids = [int(pid) for pid in selected_passwords]
             # Delete all selected password entries belonging to the user in one go
-            db_session.query(Password).filter(Password.id.in_(selected_password_ids), Password.user_id == session['user_id']).delete(synchronize_session=False)
+            db_session.query(Password).filter(Password.id.in_(selected_passwords), Password.user_id == session['user_id']).delete(synchronize_session=False)
             db_session.commit()
         except SQLAlchemyError as e:  # Catch more specific database errors
             db_session.rollback()
