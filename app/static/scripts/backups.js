@@ -30,11 +30,24 @@ function createToastContainer() {
 
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; 
-    const backupForm = document.getElementById('backupForm'); // Ensure your form has this ID
+    const backupForm = document.getElementsByClassName('backup-form'); // Ensure your form has this ID
     backupForm.addEventListener('submit', function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();
             showToast('Please test backup with the password you provided');
+            isFormSubmitted = true;
+            form.submit();
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    let isFormSubmitted = false; 
+    const csvForm = document.getElementsByClassName('csv-form'); // Ensure your form has this ID
+    csvForm.addEventListener('submit', function(e) {
+        if (!isFormSubmitted) {
+            e.preventDefault();
+            showToast('Your upload is being processed');
             isFormSubmitted = true;
             form.submit();
         }
