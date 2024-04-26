@@ -30,49 +30,118 @@ function generateAndFillPassword() {
     var password = generatePassword(length);
     document.getElementById('password').value = password;
 }
-function togglePasswordVisibility() {
+
+var passwordVisibilityToggled = false; // global var to keep track of encrypted or decrypted password.
+
+function checkForm(){
+    var form = document.getElementById('addPassForm');
+    var formType = 'addPass';
+    // If 'addPassForm' doesn't exist, check for 'editPassForm'
+    if (!form) {
+        form = document.getElementById('editPassForm');
+        formType = 'editPass';
+    }
+    return {form: form, formType: formType}
+}
+
+async function togglePasswordVisibility() {
     var passwordField = document.getElementById('password');
     var passwordToggle = document.getElementById('showPassword');
     if (passwordToggle.checked) {
-        passwordField.type = 'text';
+        const {form, formType} = checkForm();
+        if (formType === 'addPass') {
+            passwordField.type = 'text';
+        } else {
+            if (passwordVisibilityToggled === false) {
+                try {
+                    const dek = await getDek();
+                    const iv = form.querySelector('input[name="ivPass"]');
+                    const ivArr = base64ToArrayBuffer(iv.value);
+                    const passArr = base64ToArrayBuffer(passwordField.value);
+                    const passwordDecrypt = await decryptData(dek.dek, passArr, ivArr);
+                    const password = new TextDecoder().decode(passwordDecrypt);
+                    // const password = base64DecodeUtf8(passwordB64);
+                    console.log(password)
+                    passwordField.value = password;
+                    passwordVisibilityToggled = true;
+                    passwordField.type = 'text';
+                } catch (error) {
+                    console.error('Decryption failed');
+                    alert('Failed to decrypt the password. Please refresh the page or try again.');
+                    passwordField.type = 'password'; // Reset to password type on failure
+                }
+            } else {
+                passwordField.type = 'password';
+            }
+        }
     } else {
         passwordField.type = 'password';
     }
 }
 
+function base64DecodeUtf8(base64) {
+    // Decode Base64 to a binary string
+    const binaryString = atob(base64);
+
+    // Convert binary string to a character-number array
+    const charCodeArray = Array.from(binaryString, c => c.charCodeAt(0));
+
+    // Convert char code array to a byte array
+    const byteArray = new Uint8Array(charCodeArray);
+
+    // Decode byte array to a UTF-8 string
+    const text = new TextDecoder('utf-8').decode(byteArray);
+
+    return text;
+}
+
+
+
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; // Flag to prevent infinite submission loop
-    var form = document.getElementById('addPassForm');
+    const {form, formType} = checkForm();
     form.addEventListener('submit', async function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();
-            const { publicKey, privateKey } = await keyPairGenerate();
-            const salt = window.crypto.getRandomValues(new Uint8Array(16));
-            const saltB64 = window.btoa(String.fromCharCode.apply(null, salt));
-            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-            const iv = window.crypto.getRandomValues(new Uint8Array(12));
-            const data = await getEdek(publicKey, saltB64, csrfToken, iv);
-            const info = "ECDH AES-GCM"; // Ensure this info is the same on both client and server
-            const passwordField = form.querySelector('input[name="password"]');
-            if (data) {
-                console.log("Complete data received:", data.serverPublicKey);
-                const sharedSecret = await getSharedSecret(privateKey, data.serverPublicKey);
-                const kek = await deriveAESKeyFromSharedSecret(sharedSecret.sharedSecret, salt, info) 
-                const dekArrayBuffer = await decryptDEKWithSharedSecret(kek, data.edek, iv);
-                const dek = await importAesKeyFromBuffer(dekArrayBuffer);
-                const { encryptedData: arrPassword, iv: ivArrPass } = await encryptStringWithAesGcm(dek, passwordField.value)
-                console.log("arrPassword= ", `${arrPassword}`);
-                console.log("arrIV= ", `${ivArrPass}`);
-                const b64Password = arrayBufferToBase64(arrPassword);
-                const b64IV = arrayBufferToBase64(ivArrPass);
-                passwordField.value = b64Password;
-                form.querySelector('input[name="ivPass"]').value = b64IV;  // SUCCESS UP TO THIS POINT!! Now it just needs handled by the server
-                isFormSubmitted = true;
-                form.submit();
+            if ((passwordVisibilityToggled === true && formType === 'editPass') || formType === 'addPass') {
+                const passwordField = form.querySelector('input[name="password"]');
+                alert(passwordField.value);
+                const dek = await getDek();
+                if (dek) {
+                    const { encryptedData: arrPassword, iv: ivArrPass } = await encryptStringWithAesGcm(dek.dek, passwordField.value);
+                    const b64Password = arrayBufferToBase64(arrPassword);
+                    const b64IV = arrayBufferToBase64(ivArrPass);
+                    passwordField.value = b64Password;
+                    form.querySelector('input[name="ivPass"]').value = b64IV;
+                } else {
+                    console.error('Failed to retrieve DEK');
+                    return; // Handle the error appropriately
+                }
+            isFormSubmitted = true;
+            form.submit();
             }
         }}
     )}
 );
+
+async function getDek() {
+    const { publicKey, privateKey } = await keyPairGenerate();
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const saltB64 = window.btoa(String.fromCharCode.apply(null, salt));
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const data = await getEdek(publicKey, saltB64, csrfToken, iv);
+    const info = "ECDH AES-GCM"; // Ensure this info is the same on both client and server
+    if (data) {
+        // console.log("Complete data received:", data.serverPublicKey);
+        const sharedSecret = await getSharedSecret(privateKey, data.serverPublicKey);
+        const kek = await deriveAESKeyFromSharedSecret(sharedSecret.sharedSecret, salt, info) 
+        const dekArrayBuffer = await decryptData(kek, data.edek, iv);
+        const dek = await importAesKeyFromBuffer(dekArrayBuffer);
+        return {kek: kek, dek: dek}
+    }
+    return null
+}
 
 async function getEdek(publicKey, saltB64, csrfToken, iv) {
     const ivB64 = arrayBufferToBase64(iv)
@@ -94,22 +163,28 @@ async function getEdek(publicKey, saltB64, csrfToken, iv) {
     return false 
 }
 
-async function decryptDEKWithSharedSecret(sharedSecret, encryptedDEK, iv) {
+async function decryptData(key, encryptedData, iv) {
     // Assume sharedSecret is already a CryptoKey suitable for decryption
-    if (!(sharedSecret instanceof CryptoKey && sharedSecret.usages.includes('decrypt'))) {
-        throw new Error("Provided shared secret is not a valid CryptoKey for decryption.");
+    if (!(key instanceof CryptoKey && key.usages.includes('decrypt'))) {
+        throw new Error("Provided kek is not a valid CryptoKey for decryption.");
     }
-
-    // Use the shared secret directly to decrypt the DEK
-    const decryptedDEK = await window.crypto.subtle.decrypt(
-        {
-            name: "AES-GCM",
-            iv: iv
-        },
-        sharedSecret,
-        encryptedDEK);
-    return decryptedDEK; // Return the decrypted DEK for further use
+    try {
+        // Use the shared secret directly to decrypt the DEK
+        const decryptedData = await window.crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: iv
+            },
+            key,
+            encryptedData);
+        console.log("Decryption successful");
+        return decryptedData; // Return the decrypted DEK for further use
+    } catch (error) {
+        console.error('Error occurred', error);
+        throw error;
+    }
 }
+
 
 async function encryptStringWithAesGcm(aesKey, passwordString) {
     // Convert the password string to an ArrayBuffer (UTF-8)
