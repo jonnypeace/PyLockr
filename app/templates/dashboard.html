@@ -8,7 +8,7 @@
         <a href="{{ url_for('main.retrieve_passwords') }}" class="button-link">Retrieve Passwords</a>
         <a href="{{ url_for('auth.change_user_password') }}" class="button-link">Change User Password</a>
         <br><br>
-        <form class="backup-form" id="backupForm" method="POST" action="/backup">
+        <form class="backup-form" method="POST" action="/backup">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label for="backupPassword">Backup to 7zip. Enter Password:</label>
             <input autocomplete="new-password" type="password" id="backupPassword" name="backupPassword" required>
