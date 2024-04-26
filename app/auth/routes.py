@@ -3,7 +3,10 @@
 from . import auth
 from flask import render_template, request, redirect, url_for, session, flash, current_app, make_response, g, jsonify
 import re,secrets, os
-from app.utils.db_utils import authenticate_user, add_user, update_user_password, decrypt_data, update_initial_setup, retrieve_edek, validate_hashed_password, RedisComms
+from app.utils.db_utils import (authenticate_user, add_user, update_user_password,
+                                decrypt_data, update_initial_setup, retrieve_edek,
+                                validate_hashed_password, RedisComms)
+from app.utils.key_exchange import shared_secret_exchange, derive_aes_key_from_shared_secret, return_new_key_exchanged_edek
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
@@ -121,16 +124,10 @@ class GetEdekIV(BaseAuthView):
             # Attempt to retrieve the user's eDEK and IV using the provided username
             user_id = session.get('user_id') or session.get('temp_user_id')
             data = request.get_json()
-            dek = self.redis_client.get_dek(user_id)
-            salt = base64.b64decode(data['salt'])
-            shared_secret, server_public_key_b64 = shared_secret_exchange(data['publicKey'])
-            kek = derive_aes_key_from_shared_secret(shared_secret, salt)
-            iv = base64.b64decode(data['iv'])
-            # Create an AESGCM instance with the KEK
-            aesgcm = AESGCM(kek)
-            # Encrypt the DEK
-            edek = aesgcm.encrypt(iv, dek, None)
-            edek_b64 = base64.b64encode(edek).decode()
+            edek_b64, server_public_key_b64 = return_new_key_exchanged_edek(user_id,
+                                                                            data['salt'],
+                                                                            data['publicKey'],
+                                                                            data['iv'])
             logger.info(f'{edek_b64=}, {server_public_key_b64}')
             return jsonify({'edek': edek_b64, 'serverPubKeyB64': server_public_key_b64}), 200
         except Exception as e:
@@ -174,25 +171,6 @@ class Authenticate(MethodView):
 
 auth.add_url_rule('/authenticate', view_func=Authenticate.as_view('authenticate'))
 
-def shared_secret_exchange(client_public_key_b64):
-    # Load the client's public key from the request
-    client_public_key_bytes = base64.b64decode(client_public_key_b64)
-    client_public_key = load_der_public_key(client_public_key_bytes, backend=default_backend())
-
-    # Generate the server's private and public key for ECDH
-    server_private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
-    server_public_key = server_private_key.public_key()
-
-    # Serialize the server's public key to send it back to the client
-    server_public_key_der = server_public_key.public_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    server_public_key_b64 = base64.b64encode(server_public_key_der).decode('utf-8')
-
-    # Derive the shared secret using the client's public key and server's private key 
-    shared_secret = server_private_key.exchange(ec.ECDH(), client_public_key)
-    return shared_secret, server_public_key_b64
 
 class KeyExchange(BaseAuthView):
     def post(self):
@@ -214,18 +192,6 @@ class KeyExchange(BaseAuthView):
     
 auth.add_url_rule('/keyexchange', view_func=KeyExchange.as_view('keyexchange'))
 
-# aes-key is the kek
-def derive_aes_key_from_shared_secret(shared_secret, salt):
-    # Derive a 256-bit AES key from the shared secret
-    hkdf = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,  # 256 bits for AES-256
-        salt=salt,
-        info=b"ECDH AES-GCM",
-        backend=default_backend()
-    )
-    aes_key = hkdf.derive(shared_secret)
-    return aes_key
     
 class SharedSecretDecrypt(BaseAuthView):
     def post(self):
