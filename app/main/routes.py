@@ -10,6 +10,7 @@ from flask_limiter.util import get_remote_address
 from threading import Thread
 from sqlalchemy.exc import SQLAlchemyError
 from app.utils.extensions import limiter
+from app.utils.key_exchange import shared_secret_exchange, derive_aes_key_from_shared_secret, return_new_key_exchanged_edek
 
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
@@ -218,7 +219,7 @@ class AddPassword(BaseAuthenticatedView):
         try:
             is_valid_base64(iv_b64, password_b64)
         except ValidB64Error as e:
-            logger.warning(f'{session['user_id']}: Failed B64 Validation: {e}')
+            logger.warning(f'{session["user_id"]}: Failed B64 Validation:\n{e}')
             flash('Error: B64 Validation Error', 'alert alert-error')
             return redirect(url_for('main.add_password'))
             
@@ -355,8 +356,10 @@ class EditPassword(BaseAuthenticatedView):
         if password_entry:
             decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
             decrypted_notes = decrypt_data(password_entry.notes)
-            return render_template('edit_password.html', name=password_entry.name, username=password_entry.username, password=decrypted_password,
-                                   notes=decrypted_notes, category=password_entry.category, nonce=g.nonce) # password_data=password_entry, don't think i need this.
+            logger.info(f'{password_entry.iv_password=}\n{password_entry.encrypted_password}')
+            return render_template('edit_password.html', name=password_entry.name, username=password_entry.username, ivPass=password_entry.iv_password,
+                                   password=password_entry.encrypted_password,
+                                   notes=decrypted_notes, category=password_entry.category, nonce=g.nonce)
         else:
             flash('Password not found or access denied', 'alert alert-error')
             return redirect(url_for('main.retrieve_passwords'))
@@ -387,8 +390,8 @@ class EditPassword(BaseAuthenticatedView):
             if password_entry:
                 password_entry.name = name
                 password_entry.username = username
-                password_entry.encrypted_password = dek_password_b64
-                password_entry.iv_password = iv_b64
+                password_entry.encrypted_password = request.form['password']
+                password_entry.iv_password = request.form['ivPass']
                 password_entry.category = category
                 password_entry.notes = encrypted_notes
                 Session.commit()
