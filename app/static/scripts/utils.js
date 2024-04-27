@@ -20,7 +20,7 @@ function arrayBufferToBase64(buffer) {
 }
 
 
-async function decryptDEK(password, encryptedDEK, iv) {
+async function decryptDEK(password, encryptedDEK, iv, salt) {
     // Derive KEK from the password, using the same parameters as at signup
     const enc = new TextEncoder();
     const keyMaterial = await window.crypto.subtle.importKey(
@@ -33,7 +33,7 @@ async function decryptDEK(password, encryptedDEK, iv) {
     const kek = await window.crypto.subtle.deriveKey(
         {
             "name": "PBKDF2",
-            salt: enc.encode("boyah-baby"), // Ensure this matches signup
+            salt: salt, // Ensure this matches signup
             iterations: 100000,
             hash: "SHA-256"
         },
@@ -305,8 +305,64 @@ async function finalExchange(edekBase64, ivB64, csrfToken){
     return finalResponse.ok;
 }
 
+async function hashPassword(password) {
+    // Encode the password as UTF-8
+    const msgBuffer = new TextEncoder().encode(password);
+
+    // Hash the password
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+
+    // Convert the ArrayBuffer to a hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    return hashHex;
+}
+
+async function generateAndEncryptDEK(password) {
+    // Placeholder function to generate a DEK - in practice, this could be any secure, random value
+    const dek = window.crypto.getRandomValues(new Uint8Array(32)); // For a 256-bit key
+
+    // Derive KEK from the password
+    const enc = new TextEncoder();
+    const keyMaterial = await window.crypto.subtle.importKey(
+        "raw",
+        enc.encode(password),
+        {"name": "PBKDF2"},
+        false,
+        ["deriveKey"]);
+
+    // Generate a unique salt for each key derivation
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+
+    const kek = await window.crypto.subtle.deriveKey(
+        {
+            "name": "PBKDF2",
+            salt: salt, // Use a unique salt for production
+            iterations: 100000,
+            hash: "SHA-256"
+        },
+        keyMaterial,
+        { "name": "AES-GCM", "length": 256}, // KEK details
+        true,
+        [ "encrypt", "decrypt" ]);
+
+    // Encrypt DEK with KEK
+    const iv = window.crypto.getRandomValues(new Uint8Array(12)); // Initialization vector for AES-GCM
+    const encryptedDEK = await window.crypto.subtle.encrypt(
+        {
+            name: "AES-GCM",
+            iv: iv
+        },
+        kek,
+        dek);
+
+    return {encryptedDEK, iv, salt};
+}
+
 
 // Properly export your functions
 export { base64ToArrayBuffer, arrayBufferToBase64, decryptDEK,
          keyPairGenerate, importServerPublicKey, getSharedSecret, deriveAESKeyFromSharedSecret, reEncryptDEKWithSharedSecret,
-         keyExchangeShare, finalExchange, getDek, getEdek, decryptData, encryptStringWithAesGcm, importAesKeyFromBuffer};
+         keyExchangeShare, finalExchange, getDek, getEdek, decryptData, encryptStringWithAesGcm, importAesKeyFromBuffer,
+         hashPassword, generateAndEncryptDEK};
