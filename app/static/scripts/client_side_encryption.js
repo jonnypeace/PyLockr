@@ -1,6 +1,8 @@
+import {arrayBufferToBase64, hashPassword} from './utils.js';
+
 async function generateAndEncryptDEK(password) {
     // Placeholder function to generate a DEK - in practice, this could be any secure, random value
-    const dek = window.crypto.getRandomValues(new Uint8Array(16)); // For example, a 128-bit key
+    const dek = window.crypto.getRandomValues(new Uint8Array(32)); // For a 256-bit key
 
     // Derive KEK from the password
     const enc = new TextEncoder();
@@ -11,10 +13,13 @@ async function generateAndEncryptDEK(password) {
         false,
         ["deriveKey"]);
 
+    // Generate a unique salt for each key derivation
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+
     const kek = await window.crypto.subtle.deriveKey(
         {
             "name": "PBKDF2",
-            salt: enc.encode("boyah-baby"), // Use a unique salt for production
+            salt: salt, // Use a unique salt for production
             iterations: 100000,
             hash: "SHA-256"
         },
@@ -33,7 +38,7 @@ async function generateAndEncryptDEK(password) {
         kek,
         dek);
 
-    return {encryptedDEK, iv};
+    return {encryptedDEK, iv, salt};
 }
 
 document.addEventListener('DOMContentLoaded', (event) => {
@@ -52,15 +57,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 try {
                     const hashedPassword = await hashPassword(password);
                     const hashedConfirmPassword = await hashPassword(confirmPassword);
-                    const { encryptedDEK, iv } = await generateAndEncryptDEK(password);
+                    const { encryptedDEK, iv, salt } = await generateAndEncryptDEK(password);
 
                     // Convert the ArrayBuffer to Base64
                     const encryptedDEKBase64 = arrayBufferToBase64(encryptedDEK);
                     const ivBase64 = arrayBufferToBase64(iv);
+                    const saltB64 = arrayBufferToBase64(salt);
 
                     // Populate the hidden fields
                     document.querySelector('input[name="encryptedDEK"]').value = encryptedDEKBase64;
                     document.querySelector('input[name="iv"]').value = ivBase64;
+                    document.querySelector('input[name="saltB64"]').value = saltB64;
                     document.querySelector('input[name="username"]').value = username;
                     // Before submitting the form programmatically, clear the password fields
                     document.querySelector('input[name="password"]').value = hashedPassword;
@@ -79,29 +86,3 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
     });
 });
-
-
-// Utility function to convert an ArrayBuffer to Base64
-function arrayBufferToBase64(buffer) {
-    var binary = '';
-    var bytes = new Uint8Array(buffer);
-    var len = bytes.byteLength;
-    for (var i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
-
-async function hashPassword(password) {
-    // Encode the password as UTF-8
-    const msgBuffer = new TextEncoder().encode(password);
-
-    // Hash the password
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-
-    // Convert the ArrayBuffer to a hex string
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    return hashHex;
-}
