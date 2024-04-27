@@ -422,13 +422,16 @@ class Backup(BaseAuthenticatedView):
     
     def post(self):    
         
-        password = request.form.get('backupPassword')
-        if not password:
+        password_b64 = request.form.get('b64Pass')
+        iv_b64 = request.form.get('ivPass')
+        print(f'{password_b64=}')
+        if not password_b64:
             flash('Password is required for backup.', 'alert alert-error')
             return redirect(url_for('main.dashboard'))
 
         user_id = session['user_id']  # Ensure flask_session is imported correctly
         dek = self.redis_client.get_dek(user_id)
+        password = decrypt_data_dek(password_b64, iv_b64, dek)
 
         try:
             password_entries = Session.query(Password).filter_by(user_id=user_id).all()

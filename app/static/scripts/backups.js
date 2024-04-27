@@ -41,14 +41,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return null;
             });
             if (passwordField && encKey) {
-                const { password, iv } = await encryptStringWithAesGcm(encKey.dek, passwordField.value).catch(error => {
+                const { encryptedData: arrPassword, iv: ivArrPass } = await encryptStringWithAesGcm(encKey.dek, passwordField.value).catch(error => {
                     console.error('Error encrypting password');
                     showToast('Error encrypting password');
                     return null;
                 });
-                const passB64 = arrayBufferToBase64(password);
-                const ivB64 = arrayBufferToBase64(iv);
-                passwordField.value = passB64;
+                const passB64 = arrayBufferToBase64(arrPassword);
+                const ivB64 = arrayBufferToBase64(ivArrPass);
+                backupForm.querySelector('input[name="b64Pass"]').value = passB64
+                passwordField.value = '';
                 backupForm.querySelector('input[name="ivPass"]').value = ivB64;
                 showToast('Please test backup with the password you provided');
                 isFormSubmitted = true;

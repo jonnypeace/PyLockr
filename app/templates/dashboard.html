@@ -11,6 +11,7 @@
         <form class="backup-form" id="backupForm" method="POST" action="/backup">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="ivPass" value="">
+            <input type="hidden" name="b64Pass" value="">
             <label for="backupPassword">Backup to 7zip. Enter Password:</label>
             <input autocomplete="new-password" type="password" id="backupPassword" name="backupPassword" required>
             <button type="submit">Create Backup</button>
