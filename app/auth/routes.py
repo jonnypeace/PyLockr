@@ -95,8 +95,6 @@ class BaseAuthView(MethodView):
         '''
         Extend the TTL for the user's DEK in Redis.
         '''
-        # This assumes your RedisComms class has a method to extend DEK TTL
-        # Modify this method based on your RedisComms implementation
         try:
             self.redis_client.extend_dek_ttl(user_id)
         except Exception as e:

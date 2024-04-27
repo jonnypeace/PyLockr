@@ -9,7 +9,6 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from app.utils.db_utils import RedisComms
 
 def shared_secret_exchange(client_public_key_b64):
-    redis_client = RedisComms()
     # Load the client's public key from the request
     client_public_key_bytes = base64.b64decode(client_public_key_b64)
     client_public_key = load_der_public_key(client_public_key_bytes, backend=default_backend())
