@@ -30,26 +30,65 @@ function createToastContainer() {
 
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; 
-    const backupForm = document.getElementsByClassName('backup-form'); // Ensure your form has this ID
-    backupForm.addEventListener('submit', function(e) {
+    const backupForm = document.getElementById('backupForm'); // Ensure your form has this ID
+    backupForm.addEventListener('submit', async function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();
-            showToast('Please test backup with the password you provided');
-            isFormSubmitted = true;
-            form.submit();
+            const passwordField = document.getElementById('backupPassword');
+            const encKey = await getDek().catch(error => {
+                console.error('Error fetching encryption key');
+                showToast('Error fetching encryption key');
+                return null;
+            });
+            if (passwordField && encKey) {
+                const { password, iv } = await encryptStringWithAesGcm(encKey.dek, passwordField.value).catch(error => {
+                    console.error('Error encrypting password');
+                    showToast('Error encrypting password');
+                    return null;
+                });
+                const passB64 = arrayBufferToBase64(password);
+                const ivB64 = arrayBufferToBase64(iv);
+                passwordField.value = passB64;
+                backupForm.querySelector('input[name="ivPass"]').value = ivB64;
+                showToast('Please test backup with the password you provided');
+                isFormSubmitted = true;
+                backupForm.submit();
+            } else {
+                showToast('Required information is missing, please check your input and try again.');
+            }
         }
     });
 });
 
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; 
-    const csvForm = document.getElementsByClassName('csv-form'); // Ensure your form has this ID
-    csvForm.addEventListener('submit', function(e) {
+    const csvForm = document.getElementById('csvForm'); // Ensure your form has this ID
+    csvForm.addEventListener('submit', async function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();
-            showToast('Your upload is being processed');
-            isFormSubmitted = true;
-            form.submit();
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            const encKey = await getDek().catch(error => {
+                console.error('Error fetching encryption key');
+                showToast('Error fetching encryption key');
+                return null;
+            });
+            if (file && encKey) {
+                const { encryptedDataB64: fileB64, ivB64: ivFileB64 } = await encryptFileAndB64(encKey.dek, file).catch(error => {
+                    console.error('Error encrypting file');
+                    showToast('Error encrypting file');
+                    return null;
+                });
+                if (fileB64 && ivFileB64) {
+                    showToast('Your upload is being uploaded');
+                    csvForm.querySelector('input[name="encFileB64"]').value = fileB64;
+                    csvForm.querySelector('input[name="ivFileB64"]').value = ivFileB64;
+                    // Clear the original file input or remove it from the form
+                    fileInput.value = '';
+                    isFormSubmitted = true;
+                    csvForm.submit();
+                }
+            };
         }
     });
 });
@@ -77,45 +116,18 @@ async function encryptFileWithAesGcm(aesKey, file) {
 
         return { encryptedData, iv };
     } catch (error) {
-        console.error("Failed to encrypt file:", error);
+        console.error("Failed to encrypt file");
         throw error; // Rethrow to handle the error externally
     }
 }
 
 
-async function encryptAndSendFile(aesKey, file) {
+async function encryptFileAndB64(aesKey, file) {
     const { encryptedData, iv } = await encryptFileWithAesGcm(aesKey, file);
 
-    // Convert ArrayBuffer to Base64
-    function bufferToBase64(buffer) {
-        let binary = '';
-        let bytes = new Uint8Array(buffer);
-        let len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return window.btoa(binary);
-    }
-
     // Prepare data to send
-    const encryptedDataB64 = bufferToBase64(encryptedData);
-    const ivB64 = bufferToBase64(iv);
+    const encryptedDataB64 = arrayBufferToBase64(encryptedData);
+    const ivB64 = arrayBufferToBase64(iv);
 
-    // Data to send as JSON
-    const dataToSend = JSON.stringify({
-        encryptedData: encryptedDataB64,
-        iv: ivB64
-    });
-
-    // Fetch API to send data to the server
-    fetch('YOUR_FLASK_SERVER_ENDPOINT', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: dataToSend
-    })
-    .then(response => response.json())
-    .then(data => console.log('Response from server:', data))
-    .catch(error => console.error('Error sending encrypted data:', error));
+    return { encryptedDataB64, ivB64}
 }
