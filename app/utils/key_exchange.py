@@ -88,6 +88,8 @@ def is_valid_base64(*args):
     """
     try:
         for s in args:
+            if s == '':
+                continue
             # Attempt to decode the string from Base64
             base64.b64decode(s, validate=True)
         return True

@@ -83,25 +83,47 @@ async function togglePasswordVisibility() {
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; // Flag to prevent infinite submission loop
     const {form, formType} = checkForm();
+
+    async function encryptAndSetField(field, dek) {
+        try {
+            console.log('field: ', field.name, ' field value: ', field.value)
+            const ivField = form.querySelector(`input[name="iv${field.name}"]`);
+            console.log('ivField:', ivField)
+            if (field.value !== '') {
+                const { encryptedData, iv } = await encryptStringWithAesGcm(dek, field.value);
+                console.log('iv: ', iv)
+                field.value = arrayBufferToBase64(encryptedData);
+                form.querySelector(`input[name="iv${field.name}"]`).value = arrayBufferToBase64(iv);
+            }
+        }catch (error) {
+            console.error(`Encryption failed for ${field.name}: ${field.value}`, error);
+        }
+    };
+
     form.addEventListener('submit', async function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();
+            const fields = ['Name', 'Category', 'Username', 'Password'];
             if ((passwordVisibilityToggled === true && formType === 'editPass') || formType === 'addPass') {
-                const passwordField = form.querySelector('input[name="password"]');
                 const encKey = await getDek();
                 if (encKey) {
-                    const { encryptedData: arrPassword, iv: ivArrPass } = await encryptStringWithAesGcm(encKey.dek, passwordField.value);
-                    const b64Password = arrayBufferToBase64(arrPassword);
-                    const b64IV = arrayBufferToBase64(ivArrPass);
-                    passwordField.value = b64Password;
-                    form.querySelector('input[name="ivPass"]').value = b64IV;
+                    try {
+                        for (const fieldName of fields) {
+                            const field = form.querySelector(`input[name="${fieldName}"]`);
+                            await encryptAndSetField(field, encKey.dek);
+                        }
+                        await encryptAndSetField(document.getElementById('notes'), encKey.dek);
+                    } catch (error) {
+                        console.error('Encryption failed', error);
+                        return;
+                    }
+                    isFormSubmitted = true;
+                    form.submit();
                 } else {
                     console.error('Failed to retrieve DEK');
-                    return; // Handle the error appropriately
+                    return;
                 }
-            isFormSubmitted = true;
-            form.submit();
             }
-        }}
-    )}
-);
+        }
+    })
+})

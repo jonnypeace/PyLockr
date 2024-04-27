@@ -50,13 +50,16 @@ class Password(Base):
     id = Column(String(128), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
     # id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(128), ForeignKey('users.id'), nullable=False)
-    name = Column(String(256))
-    username = Column(String(256))
-    encrypted_password = Column(String(256)) # b64 direct from js. decodes into crypto
-    iv_password = Column(String(128)) # b64 direct from js. decodes into bytes
-    category = Column(String(256))
-    notes = Column(String(4096))
-    # iv_notes = Column(String(16)) # b64 direct from js. decodes into bytes
+    Name = Column(String(256)) # b64 direct from js. decodes into crypto
+    ivName = Column(String(128)) # b64 direct from js. decodes into bytes
+    Username = Column(String(256)) # b64 direct from js. decodes into crypto
+    ivUsername = Column(String(128)) # b64 direct from js. decodes into bytes
+    Password = Column(String(256)) # b64 direct from js. decodes into crypto
+    ivPassword = Column(String(128)) # b64 direct from js. decodes into bytes
+    Category = Column(String(256)) # b64 direct from js. decodes into crypto
+    ivCategory = Column(String(128)) # b64 direct from js. decodes into bytes
+    Notes = Column(String(4096)) # b64 direct from js. decodes into crypto
+    ivNotes = Column(String(128)) # b64 direct from js. decodes into bytes
     user = relationship("User", back_populates="passwords")
 
 class BackupHistory(Base):

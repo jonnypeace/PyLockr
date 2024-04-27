@@ -185,60 +185,30 @@ class AddPassword(BaseAuthenticatedView):
     def get(self):
         return render_template('add_password.html', nonce=g.nonce)
     def post(self):
-        
-        name = sanitizer.sanitize(request.form['name'])
-        username = sanitizer.sanitize(request.form['username'])
-        # encrypted_password = encrypt_data(request.form['password'])
-        category = sanitizer.sanitize(request.form['category'])
-        encrypted_notes = encrypt_data(request.form['notes'])
-        # password = request.form['password']
-
-        # dek_b64 = self.redis_client.get_dek(session['user_id'])
-        # iv_b64, dek_password_b64 = encrypt_data_dek(password, dek_b64)
-
-        iv_b64 = request.form['ivPass']
-        # iv_b64_decode = base64.b64decode(iv_b64) # This is needed for decoding, but redundant for client side encryption.
-        password_b64 = request.form['password']
-        # logger.info(f'{iv_b64=} and {password_b64=}')
+        form_keys = set(Password.__table__.columns.keys()) - {'id', 'user_id', 'user'}
+        form_dict = {field: request.form.get(field, '') for field in form_keys}
 
         try:
-            is_valid_base64(iv_b64, password_b64)
+            is_valid_base64(*form_dict.values())
         except ValidB64Error as e:
             logger.warning(f'{session["user_id"]}: Failed B64 Validation:\n{e}')
             flash('Error: B64 Validation Error', 'alert alert-error')
             return redirect(url_for('main.add_password'))
-            
-        # Define maximum lengths
-        max_length_name = 50
-        max_length_username = 50
-        max_length_category = 50
-        max_length_notes = 4096
 
-        # Validate lengths
-        if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes or len(category) > max_length_category:
-            # Handle error: return an error message or redirect
-            flash('Error: Input data too long', 'alert alert-error')
-            return redirect(url_for('main.add_password'))
-
+        form_dict['user_id'] = session['user_id']
         # Add new password entry
-        new_password_entry = Password(
-            user_id=session['user_id'],  # Ensure this is set correctly in your session
-            name=name,
-            username=username,
-            encrypted_password=password_b64,
-            iv_password=iv_b64,
-            category=category,
-            notes=encrypted_notes
-        )
+        new_password_entry = Password(**form_dict)
+
         db_session = Session()
         try:
             db_session.add(new_password_entry)
             db_session.commit()
             flash('Password added successfully!', 'alert alert-ok')
-        except Exception as e:
+        except SQLAlchemyError as e:
             db_session.rollback()
             flash('Failed to add password.', 'alert alert-error')
             logger.error(f"Error adding password: {e}")  # Log or handle the error as needed
+            return redirect(url_for('main.add_password'))
         finally:
             db_session.close()
 
