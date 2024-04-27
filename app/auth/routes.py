@@ -6,7 +6,7 @@ import re,secrets, os
 from app.utils.db_utils import (authenticate_user, add_user, update_user_password,
                                 decrypt_data, update_initial_setup, retrieve_edek,
                                 validate_hashed_password, RedisComms)
-from app.utils.key_exchange import shared_secret_exchange, derive_aes_key_from_shared_secret, return_new_key_exchanged_edek
+from app.utils.key_exchange import shared_secret_exchange, derive_aes_key_from_shared_secret, return_new_key_exchanged_edek, is_valid_base64
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
@@ -128,7 +128,7 @@ class GetEdekIV(BaseAuthView):
                                                                             data['salt'],
                                                                             data['publicKey'],
                                                                             data['iv'])
-            logger.info(f'{edek_b64=}, {server_public_key_b64}')
+            # logger.info(f'{edek_b64=}, {server_public_key_b64}')
             return jsonify({'edek': edek_b64, 'serverPubKeyB64': server_public_key_b64}), 200
         except Exception as e:
             logger.error(e)
@@ -165,7 +165,7 @@ class Authenticate(MethodView):
             session['temp_user_id'] = user.id # Needed for 2FA and storing dek in redis
             # Assuming get_user_edek_iv is a function that retrieves the EDEK and IV for the user
             user = retrieve_edek(username=username)
-            return jsonify({'encryptedDEK': user.edek, 'iv': user.iv}), 200
+            return jsonify({'encryptedDEK': user.edek, 'iv': user.iv, 'saltAuth': user.salt}), 200
         else:
             return jsonify({'message': 'Authentication failed'}), 403
 
@@ -281,13 +281,19 @@ class ChangeUserPass(BaseAuthView):
         return render_template('change_user_password.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
 
     def post(self):
-        
-        current_password = request.form['current_password'] # needs to be hashed
-        new_password = request.form['new_password'] # needs to be hashed
-        confirm_new_password = request.form['confirm_new_password'] # needs to be hashed
-        dek = request.form['dek']
-        edek = request.form['encryptedDEK']
-        iv = request.form['iv']
+        try:
+            current_password = request.form['current_password'] # needs to be hashed
+            new_password = request.form['new_password'] # needs to be hashed
+            confirm_new_password = request.form['confirm_new_password'] # needs to be hashed
+            edek = request.form['encryptedDEK']
+            iv = request.form['iv']
+            salt = request.form['salt']
+        except TypeError as e:
+            logger.error(f'Requested information inappropriate\n{e}')
+            return redirect(url_for('auth.change_user_password'))
+
+
+        # if is_valid_base64():
 
         requested_ip = get_remote_address()
         username = session.get('username')
@@ -305,10 +311,13 @@ class ChangeUserPass(BaseAuthView):
 
         # Attempt to update the user's password
         try:
-            if update_user_password(username, current_password, new_password, edek, iv):
-                self.redis_client.send_dek(session['user_id'], dek)
+            if update_user_password(username, current_password, new_password, edek, iv, salt):
                 flash('Password successfully updated.', 'alert alert-ok')
-                return redirect(url_for('main.dashboard'))
+                session.clear()
+                return redirect(url_for('main.home'))
+            else:
+                flash('Authenticated Password Failed', 'alert alert-error')
+                return redirect(url_for('auth.change_user_password'))
         except Exception as e:
             flash('Current password is incorrect or update failed.', 'alert alert-error')
             logger.error(f'Username/Password update failed.\n{e}')
@@ -329,7 +338,12 @@ class SignUP(MethodView):
         confirm_password = request.form['confirm_password']
         encrypted_dek_b64 = request.form['encryptedDEK']
         iv_b64 = request.form['iv']
+        salt_b64 = request.form['saltB64']
         requested_ip = get_remote_address()
+
+        if not is_valid_base64(encrypted_dek_b64, iv_b64, salt_b64):
+            flash(f'Base64 Error', 'alert alert-error')
+            return redirect(url_for('auth.signup'))
 
         # Password complexity check
         if not validate_hashed_password(password):
@@ -344,7 +358,7 @@ class SignUP(MethodView):
 
         # Store the encrypted DEK and IV securely in the user's account record
         # Assume a function `create_user_account` that handles this.
-        if add_user(username, password, encrypted_dek_b64, iv_b64):
+        if add_user(username, password, encrypted_dek_b64, iv_b64, salt_b64):
             flash('User successfully registered.', 'alert alert-ok')
             return redirect(url_for('main.home'))
         else:
