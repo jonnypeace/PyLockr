@@ -1,4 +1,4 @@
-import base64
+import base64, binascii
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -67,3 +67,31 @@ def return_new_key_exchanged_edek(user_id,salt,public_key, iv):
     edek = aesgcm.encrypt(iv, dek, None)
     edek_b64 = base64.b64encode(edek).decode()
     return edek_b64, server_public_key_b64
+
+class ValidB64Error(Exception):
+    """Exception raised when the integrity of received base64 string is compromised."""
+    def __init__(self, message="Base64 check failed"):
+        self.message = message
+        super().__init__(self.message)
+
+
+def is_valid_base64(*args):
+    """Validate multiple Base64 encoded strings.
+
+    Args:
+        *args: Variable length argument list of strings to be validated as Base64.
+
+    Returns:
+        bool: True if all strings are valid Base64.
+
+    Raises:
+        ValidB64Error: If any string is not valid Base64.
+    """
+    try:
+        for s in args:
+            # Attempt to decode the string from Base64
+            base64.b64decode(s, validate=True)
+        return True
+    except (ValueError, TypeError, binascii.Error) as e:
+        # Raising an exception with more context about the failure
+        raise ValidB64Error(f"Base64 check failed: {e}")
