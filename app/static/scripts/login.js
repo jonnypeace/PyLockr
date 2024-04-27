@@ -1,18 +1,5 @@
-import { base64ToArrayBuffer, decryptDEK, keyPairGenerate, keyExchangeShare} from './utils.js';
-
-async function hashPassword(password) {
-    // Encode the password as UTF-8
-    const msgBuffer = new TextEncoder().encode(password);
-
-    // Hash the password
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-
-    // Convert the ArrayBuffer to a hex string
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    return hashHex;
-}
+import { base64ToArrayBuffer, decryptDEK, keyPairGenerate,
+        keyExchangeShare, hashPassword} from './utils.js';
 
 async function authenticateUser(username, password, csrfToken) {
     const authResponse = await fetch('/authenticate', {
@@ -23,11 +10,11 @@ async function authenticateUser(username, password, csrfToken) {
         },
         body: JSON.stringify({username: username, password: password}),
     });
-    const { encryptedDEK, iv } = await authResponse.json();
+    const { encryptedDEK, iv, saltAuth } = await authResponse.json();
     if (!authResponse.ok) {
         throw new Error('Authentication failed');
     }
-    return { encryptedDEK: encryptedDEK, iv: iv };
+    return { encryptedDEK: encryptedDEK, iv: iv, saltAuth: saltAuth };
 }
 
 ///////////////////
@@ -46,13 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const csrfToken = document.querySelector('input[name="csrf_token"]').value;
 
         try {
-            const { encryptedDEK, iv } = await authenticateUser(usernameField.value, hashedPassword, csrfToken)
+            const { encryptedDEK, iv, saltAuth } = await authenticateUser(usernameField.value, hashedPassword, csrfToken)
             // Convert from Base64 to ArrayBuffer before passing to decryptDEK
             const encryptedDEKArrayBuffer = base64ToArrayBuffer(encryptedDEK);
             const ivArrayBuffer = base64ToArrayBuffer(iv);
+            const saltAuthBuffer = base64ToArrayBuffer(saltAuth);
             const info = "ECDH AES-GCM"; // Ensure this info is the same on both client and server
             // Now, encryptedDEKArrayBuffer and ivArrayBuffer are in the correct format
-            const dek = await decryptDEK(passwordField.value, encryptedDEKArrayBuffer, ivArrayBuffer);
+            const dek = await decryptDEK(passwordField.value, encryptedDEKArrayBuffer, ivArrayBuffer, saltAuthBuffer);
             const { publicKey, privateKey } = await keyPairGenerate();
             const salt = window.crypto.getRandomValues(new Uint8Array(16));
             const saltB64 = window.btoa(String.fromCharCode.apply(null, salt));
@@ -67,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Handle the error, display feedback to the user
             }
         } catch (error) {
-            console.error('Authentication error:', error);
+            console.error('Authentication error');
             // Implement user feedback based on the error
         }
     });
