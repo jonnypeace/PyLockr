@@ -34,26 +34,26 @@ def init_db():
 
 class User(Base):
     __tablename__ = 'users'
-    # id = Column(String(255), primary_key=True, unique=True, nullable=False)
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
+    id = Column(String(128), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
     username = Column(String(256), unique=True, nullable=False)
     password_hash = Column(String(128), nullable=False)
     otp_2fa_enc = Column(BLOB, nullable=False)
     initial_setup = Column(Boolean, nullable=False, default=True)
     edek = Column(String(256), nullable=False)
-    iv = Column(String(24), nullable=False)
+    iv = Column(String(128), nullable=False)
+    salt = Column(String(128), nullable=False)
     passwords = relationship("Password", back_populates="user")
     backup_history = relationship("BackupHistory", back_populates="user")
 
 class Password(Base):
     __tablename__ = 'passwords'
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
+    id = Column(String(128), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
     # id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
+    user_id = Column(String(128), ForeignKey('users.id'), nullable=False)
     name = Column(String(256))
     username = Column(String(256))
-    encrypted_password = Column(String(128)) # b64 direct from js. decodes into crypto
-    iv_password = Column(String(16)) # b64 direct from js. decodes into bytes
+    encrypted_password = Column(String(256)) # b64 direct from js. decodes into crypto
+    iv_password = Column(String(128)) # b64 direct from js. decodes into bytes
     category = Column(String(256))
     notes = Column(String(4096))
     # iv_notes = Column(String(16)) # b64 direct from js. decodes into bytes
@@ -63,7 +63,7 @@ class BackupHistory(Base):
     __tablename__ = 'backup_history'
     id = Column(Integer, primary_key=True)
     backup_date = Column(TIMESTAMP, default=func.current_timestamp())
-    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
+    user_id = Column(String(128), ForeignKey('users.id'), nullable=False)
     user = relationship("User", back_populates="backup_history")  # This establishes a relationship with the User model
 
 
@@ -79,7 +79,7 @@ def update_initial_setup(username)-> bool:
             return False
 
 
-def add_user(username, hashed_password, edek, iv):
+def add_user(username, hashed_password, edek, iv, salt):
     '''Add a new user with a hashed password to the database.'''
     #user_id = str(uuid.uuid4())
     hashed_password = generate_password_hash(hashed_password, method='pbkdf2:sha256')
@@ -90,7 +90,8 @@ def add_user(username, hashed_password, edek, iv):
                     otp_2fa_enc=encrypted_otp,
                     initial_setup=True,
                     edek=edek,
-                    iv=iv)
+                    iv=iv,
+                    salt=salt)
     
     session = Session()
     try:
@@ -128,7 +129,7 @@ def authenticate_user(username, hashed_password):
     session.close()
     return False
 
-def update_user_password(username, current_password, new_password, edek, iv):
+def update_user_password(username, current_password, new_password, edek, iv, salt):
     '''Update the specified user's password.'''
     session = Session()
     try:
@@ -140,6 +141,7 @@ def update_user_password(username, current_password, new_password, edek, iv):
             user.password_hash = new_password_hash
             user.edek = edek
             user.iv = iv
+            user.salt = salt
             session.commit()
             logger.info(f'User successfully changed password for username: {username}')
             return True
@@ -198,15 +200,20 @@ def encrypt_data_dek(data, dek):
     return base64.b64encode(iv), base64.b64encode(encrypted_data)
 
 def decrypt_data_dek(encrypted_data_b64, iv_b64, dek):
-    # Decode the IV, encrypted data, and DEK from Base64
-    iv = base64.b64decode(iv_b64)
-    encrypted_data = base64.b64decode(encrypted_data_b64)
-    # dek = base64.b64decode(dek_b64)
-    aesgcm = AESGCM(dek)
-    # Decrypt the data
-    data = aesgcm.decrypt(iv, encrypted_data, None)
-    # Return the decrypted data as a string
-    return data.decode()
+    try:
+        # Decode the IV, encrypted data, and DEK from Base64
+        iv = base64.b64decode(iv_b64)
+        encrypted_data = base64.b64decode(encrypted_data_b64)
+        # dek = base64.b64decode(dek_b64)
+        aesgcm = AESGCM(dek)
+        # Decrypt the data
+        data = aesgcm.decrypt(iv, encrypted_data, None)
+        # Return the decrypted data as a string
+        return data.decode()
+    except Exception as e:
+        logger.error(f'Error handling data decryption using dek\n{e}')
+        return False
+
 
 import re
 
