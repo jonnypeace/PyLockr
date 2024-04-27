@@ -402,9 +402,7 @@ class DecryptPassword(BaseAuthenticatedView):
         finally:
             Session.close()
         if password_entry and password_entry.encrypted_password:
-            dek_b64 = self.redis_client.get_dek(session['user_id'])
-            decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
-            return jsonify({'password': decrypted_password}) # Send the decrypted password back
+            return jsonify({'password': password_entry.encrypted_password, 'iv': password_entry.iv_password}) # Send the decrypted password back
         else:
             current_ip = get_remote_address()
             logger.error(f'Issue encountered with user trying to use copy to clipboard: IP {current_ip}')

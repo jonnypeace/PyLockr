@@ -1,31 +1,51 @@
-function copyToClipboard(passwordId) {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+import { base64ToArrayBuffer, reEncryptDEKWithSharedSecret, importServerPublicKey,
+    arrayBufferToBase64, keyPairGenerate, getSharedSecret, deriveAESKeyFromSharedSecret,
+    keyExchangeShare, finalExchange, getDek, getEdek, decryptData,
+    encryptStringWithAesGcm, importAesKeyFromBuffer} from './utils.js';
 
-    fetch('/decrypt_password/' + passwordId, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken, // Here you set the CSRF token in the request headers
-        },
-        body: JSON.stringify({ passwordId: passwordId }) // If your backend expects JSON, ensure to send the passwordId in the body
-    })
-    .then(response => response.json()) // Parse the JSON response
-    .then(data => {
-        // Extract the password from the parsed JSON object
-        const password = data.password;
-        // Use the Clipboard API to copy the extracted password
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(password).then(() => {
-                showToast();
-            }).catch(err => {
-                console.error('Failed to copy with Clipboard API: ', err);
+
+    async function copyToClipboard(passwordId) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+        try {
+            const response = await fetch('/decrypt_password/' + passwordId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ passwordId: passwordId })
             });
-        } else {
-            fallbackCopyTextToClipboard(password); // Use the fallback method with the extracted password
+    
+            if (!response.ok) {
+                throw new Error('Network response was not ok.');
+            }
+    
+            const data = await response.json();
+            const encKey = await getDek();
+            const ivArr = base64ToArrayBuffer(data.iv);
+            const passArr = base64ToArrayBuffer(data.password);
+            const passwordDecrypted = await decryptData(encKey.dek, passArr, ivArr);
+            const decoder = new TextDecoder('utf-8');
+            const password = decoder.decode(passwordDecrypted);
+    
+            if (navigator.clipboard) {
+                try {
+                    await navigator.clipboard.writeText(password);
+                    showToast('Password copied to clipboard successfully!');
+                } catch (err) {
+                    console.error('Failed to copy with Clipboard API: ', err);
+                    showToast('Failed to copy password to clipboard.');
+                }
+            } else {
+                fallbackCopyTextToClipboard(password);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Failed to fetch or decrypt the password.');
         }
-    })
-    .catch(error => console.error('Error:', error));
-}
+    }
+
 
 // Fallback method using execCommand for older browsers
 function fallbackCopyTextToClipboard(text) {
