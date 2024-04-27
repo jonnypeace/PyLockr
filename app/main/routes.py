@@ -5,42 +5,16 @@ from flask import current_app, render_template, request, redirect, url_for, sess
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView
-import re, os, csv, py7zr, time, io, csv, secrets, base64, redis, binascii
+import re, os, csv, py7zr, time, io, csv, secrets, base64, redis
 from flask_limiter.util import get_remote_address
 from threading import Thread
 from sqlalchemy.exc import SQLAlchemyError
 from app.utils.extensions import limiter
-from app.utils.key_exchange import shared_secret_exchange, derive_aes_key_from_shared_secret, return_new_key_exchanged_edek
+from app.utils.key_exchange import ValidB64Error, is_valid_base64
 
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
 
-class ValidB64Error(Exception):
-    """Exception raised when the integrity of received base64 string is compromised."""
-    def __init__(self, message="Base64 check failed"):
-        self.message = message
-        super().__init__(self.message)
-
-def is_valid_base64(*args):
-    """Validate multiple Base64 encoded strings.
-
-    Args:
-        *args: Variable length argument list of strings to be validated as Base64.
-
-    Returns:
-        bool: True if all strings are valid Base64.
-
-    Raises:
-        ValidB64Error: If any string is not valid Base64.
-    """
-    try:
-        for s in args:
-            # Attempt to decode the string from Base64
-            base64.b64decode(s, validate=True)
-        return True
-    except (ValueError, TypeError, binascii.Error) as e:
-        # Raising an exception with more context about the failure
-        raise ValidB64Error(f"Base64 check failed: {e}")
 
 class BaseAuthenticatedView(MethodView):
     '''
@@ -81,30 +55,43 @@ class UploadCSV(BaseAuthenticatedView):
 
     def post(self):
 
-        file = request.files.get('csvFile')
-        if not file or file.filename == '':
-            flash('No file selected', 'alert alert-error')
-            return redirect(url_for('main.dashboard'))
-        
-        if not self.is_valid_file(file.filename):
-            flash('Invalid file type, please upload a CSV file.', 'alert alert-error')
+        enc_file_b64 = request.form.get('encFileB64')
+        iv_b64 = request.form.get('ivFileB64')
+        dek = self.redis_client.get_dek(session['user_id'])
+
+        if not all([enc_file_b64, iv_b64, dek]) or not is_valid_base64(enc_file_b64, iv_b64):
+            logger.error('Invalid or missing encryption parameters')
+            flash('Invalid or missing encryption parameters', 'alert alert-error')
             return redirect(url_for('main.dashboard'))
         
         try:
-            self.process_file(file)
+            file = decrypt_data_dek(enc_file_b64, iv_b64, dek)
+            if not file:
+                flash('Failed to decrypt file', 'alert alert-error')
+                return redirect(url_for('main.dashboard'))
+
+            file_stream = io.StringIO(file, newline=None)
+            if not self.is_csv(file_stream):
+                logger.error('Invalid file format. Please upload a CSV file.')
+                flash('Invalid file format. Please upload a CSV file.', 'alert alert-error')
+                return redirect(url_for('main.dashboard'))
+
+            self.process_file(file_stream)
             flash('CSV File successfully uploaded', 'alert alert-ok')
         except Exception as e:
-            flash(f'Error processing the file: {e}', 'alert alert-error')
-
+            logger.error(f'Error processing the file:\n{e}')
+            flash(f'Unknown Error processing the file', 'alert alert-error')
         return redirect(url_for('main.dashboard'))
 
-    @staticmethod
-    def is_valid_file(filename):
-        return filename.endswith('.csv')
+    def is_csv(self, file_stream):
+        try:
+            csv.Sniffer().sniff(file_stream.read(1024))  # Check if the file stream is a CSV
+            file_stream.seek(0)  # Reset file stream to the beginning
+            return True
+        except csv.Error:
+            return False
 
-    def process_file(self, file):
-        #file_stream = io.StringIO(file.read().decode('utf-8'))
-        file_stream = io.StringIO(file.read().decode('utf-8'), newline=None)
+    def process_file(self, file_stream):
         csv_reader = csv.reader(file_stream)
         db_session = Session()
         row_index_dict = {}
