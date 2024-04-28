@@ -1,50 +1,75 @@
 import { base64ToArrayBuffer, reEncryptDEKWithSharedSecret, importServerPublicKey,
     arrayBufferToBase64, keyPairGenerate, getSharedSecret, deriveAESKeyFromSharedSecret,
     keyExchangeShare, finalExchange, getDek, getEdek, decryptData,
-    encryptStringWithAesGcm, importAesKeyFromBuffer} from './utils.js';
+    encryptStringWithAesGcm, importAesKeyFromBuffer, decryptField} from './utils.js';
 
 
-    async function copyToClipboard(passwordId) {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    
-        try {
-            const response = await fetch('/decrypt_password/' + passwordId, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({ passwordId: passwordId })
-            });
-    
-            if (!response.ok) {
-                throw new Error('Network response was not ok.');
-            }
-    
-            const data = await response.json();
-            const encKey = await getDek();
-            const ivArr = base64ToArrayBuffer(data.iv);
-            const passArr = base64ToArrayBuffer(data.password);
-            const passwordDecrypted = await decryptData(encKey.dek, passArr, ivArr);
-            const decoder = new TextDecoder('utf-8');
-            const password = decoder.decode(passwordDecrypted);
-    
-            if (navigator.clipboard) {
-                try {
-                    await navigator.clipboard.writeText(password);
-                    showToast('Password copied to clipboard successfully!');
-                } catch (err) {
-                    console.error('Failed to copy with Clipboard API: ', err);
-                    showToast('Failed to copy password to clipboard.');
-                }
-            } else {
-                fallbackCopyTextToClipboard(password);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            showToast('Failed to fetch or decrypt the password.');
-        }
+async function updateTableWithData(data) {
+    const enKey = await getDek();
+    // In python, the data structure needs to be {id: [1,2,3,4], Name: [a,b,c,d]....}
+    const tableBody = document.getElementById('myTable').getElementsByTagName('tbody')[0];
+    const length = data.id.length;
+    for (let i = 0; i < length; i++) {
+        let name = await decryptField(enKey.dek, data.Name[i], data.ivName[i]);
+        let username = await decryptField(enKey.dek, data.Username[i], data.ivUsername[i]);
+        let category = await decryptField(enKey.dek, data.Category[i], data.ivCategory[i]);
+        const row = tableBody.insertRow();
+        row.innerHTML = `
+            <td>${name}</td>
+            <td>${username}</td>
+            <td>${category}</td>
+            <td>
+                <button type="button" class="edit-btn" data-edit-url="/edit_password/${data.id[i]}">Edit</button>
+                <button type="button" class="copy-to-clipboard-btn" data-password-id="${data.id[i]}">Copy to Clipboard</button>
+                <button type="button" class="delete-btn" data-password-id="${data.id[i]}">Delete</button>
+            </td>
+            <td class="checkbox-cell"><input type="checkbox" name="selected_passwords" value="${data.id[i]}"></td>
+        `;
     }
+}
+
+
+async function copyToClipboard(passwordId) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    try {
+        const response = await fetch('/decrypt_password/' + passwordId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ passwordId: passwordId })
+        });
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok.');
+        }
+
+        const data = await response.json();
+        const encKey = await getDek();
+        const ivArr = base64ToArrayBuffer(data.iv);
+        const passArr = base64ToArrayBuffer(data.password);
+        const passwordDecrypted = await decryptData(encKey.dek, passArr, ivArr);
+        const decoder = new TextDecoder('utf-8');
+        const password = decoder.decode(passwordDecrypted);
+
+        if (navigator.clipboard) {
+            try {
+                await navigator.clipboard.writeText(password);
+                showToast('Password copied to clipboard successfully!');
+            } catch (err) {
+                console.error('Failed to copy with Clipboard API: ', err);
+                showToast('Failed to copy password to clipboard.');
+            }
+        } else {
+            fallbackCopyTextToClipboard(password);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('Failed to fetch or decrypt the password.');
+    }
+}
 
 
 // Fallback method using execCommand for older browsers
@@ -70,15 +95,6 @@ function showToast() {
     setTimeout(function() { toast.style.display = "none"; }, 3000); // Hide after 3 seconds
 }
 
-new DataTable('#myTable', {
-    responsive: true,
-    scroller: true,
-    scrollY: 400,
-    deferRender: true,
-    scroller: {
-        displayBuffer: 10 // Adjust this value to preload more rows
-    }
-});
 
 // Multi Select Delete all button listener
 document.addEventListener('DOMContentLoaded', () => {
@@ -94,9 +110,29 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Event delegation for the Delete button
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    var encryptedDataElement = document.getElementById('vaultData');
+    var encryptedData = encryptedDataElement.dataset.vault;
+
+    // Assuming decryptData is your function to decrypt the data
+    //const decryptedData = decryptData(encryptedData);  // You will need to define this function based on your encryption
+
+    if (encryptedData && encryptedData !== "{}") {
+        await updateTableWithData(JSON.parse(encryptedData));
+    }
+
+    new DataTable('#myTable', {
+        responsive: true,
+        scroller: true,
+        scrollY: 400,
+        deferRender: true,
+        scroller: {
+        displayBuffer: 10 // Adjust this value to preload more rows
+        }
+    });
+
+
     var deleteButtons = document.querySelectorAll('.delete-btn');
-  
     deleteButtons.forEach(function(button) {
       button.addEventListener('click', function() {
         var passwordId = this.getAttribute('data-password-id');

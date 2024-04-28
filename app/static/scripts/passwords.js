@@ -1,7 +1,7 @@
 import { base64ToArrayBuffer, reEncryptDEKWithSharedSecret, importServerPublicKey,
          arrayBufferToBase64, keyPairGenerate, getSharedSecret, deriveAESKeyFromSharedSecret,
          keyExchangeShare, finalExchange, getDek, getEdek, decryptData,
-         encryptStringWithAesGcm, importAesKeyFromBuffer} from './utils.js';
+         encryptStringWithAesGcm, importAesKeyFromBuffer, decryptField} from './utils.js';
 
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -33,8 +33,6 @@ function generateAndFillPassword() {
     document.getElementById('password').value = password;
 }
 
-var passwordVisibilityToggled = false; // global var to keep track of encrypted or decrypted password.
-
 function checkForm(){
     var form = document.getElementById('addPassForm');
     var formType = 'addPass';
@@ -50,79 +48,72 @@ async function togglePasswordVisibility() {
     var passwordField = document.getElementById('password');
     var passwordToggle = document.getElementById('showPassword');
     if (passwordToggle.checked) {
-        const {form, formType} = checkForm();
-        if (formType === 'addPass') {
-            passwordField.type = 'text';
-        } else {
-            if (passwordVisibilityToggled === false) {
-                try {
-                    const dek = await getDek();
-                    const iv = form.querySelector('input[name="ivPass"]');
-                    const ivArr = base64ToArrayBuffer(iv.value);
-                    const passArr = base64ToArrayBuffer(passwordField.value);
-                    const passwordDecrypt = await decryptData(dek.dek, passArr, ivArr);
-                    const password = new TextDecoder().decode(passwordDecrypt);
-                    passwordField.value = password;
-                    passwordVisibilityToggled = true;
-                    passwordField.type = 'text';
-                } catch (error) {
-                    console.error('Decryption failed');
-                    alert('Failed to decrypt the password. Please refresh the page or try again.');
-                    passwordField.type = 'password'; // Reset to password type on failure
-                }
-            } else {
-                passwordField.type = 'password';
-            }
-        }
+        passwordField.type = 'text';
     } else {
         passwordField.type = 'password';
     }
 }
 
+// This is for setting the fields before submitting form data to send to server
+async function encryptAndSetField(form, field, dek) {
+    try {
+        const ivField = form.querySelector(`input[name="iv${field.name}"]`);
+        if (field.value !== '') {
+            const { encryptedData, iv } = await encryptStringWithAesGcm(dek, field.value);
+            field.value = arrayBufferToBase64(encryptedData);
+            form.querySelector(`input[name="iv${field.name}"]`).value = arrayBufferToBase64(iv);
+        }
+    }catch (error) {
+        console.error(`Encryption failed for ${field.name}: ${field.value}`, error);
+    }
+};
 
-document.addEventListener('DOMContentLoaded', () => {
-    let isFormSubmitted = false; // Flag to prevent infinite submission loop
+// This is for the editPass form for viewing
+async function updateEditPass(dek, data) {
+    document.querySelector('input[name="Name"]').value = await decryptField(dek, data.Name, data.ivName);
+    document.querySelector('input[name="Username"]').value = await decryptField(dek, data.Username, data.ivUsername);
+    document.querySelector('input[name="Category"]').value = await decryptField(dek, data.Category, data.ivCategory);
+    document.querySelector('input[name="Password"]').value = await decryptField(dek, data.Password, data.ivPassword);
+    document.getElementById('notes').value = await decryptField(dek, data.Notes, data.ivNotes);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    
+    const encKey = await getDek();
     const {form, formType} = checkForm();
 
-    async function encryptAndSetField(field, dek) {
-        try {
-            console.log('field: ', field.name, ' field value: ', field.value)
-            const ivField = form.querySelector(`input[name="iv${field.name}"]`);
-            console.log('ivField:', ivField)
-            if (field.value !== '') {
-                const { encryptedData, iv } = await encryptStringWithAesGcm(dek, field.value);
-                console.log('iv: ', iv)
-                field.value = arrayBufferToBase64(encryptedData);
-                form.querySelector(`input[name="iv${field.name}"]`).value = arrayBufferToBase64(iv);
-            }
-        }catch (error) {
-            console.error(`Encryption failed for ${field.name}: ${field.value}`, error);
-        }
-    };
+    // Updated and decrypt data into form fields 
+    if (formType === 'editPass') {
+        var encryptedDataElement = document.getElementById('vaultData');
+        var encryptedData = encryptedDataElement.dataset.vault;
+        console.log("Data to parse:", encryptedData);
+        console.log("Type of data:", typeof encryptedData);
+        const jsonData = JSON.parse(encryptedData);
+        await updateEditPass(encKey.dek, jsonData);
+    }
+
+    let isFormSubmitted = false; // Flag to prevent infinite submission loop
 
     form.addEventListener('submit', async function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();
             const fields = ['Name', 'Category', 'Username', 'Password'];
-            if ((passwordVisibilityToggled === true && formType === 'editPass') || formType === 'addPass') {
-                const encKey = await getDek();
-                if (encKey) {
-                    try {
-                        for (const fieldName of fields) {
-                            const field = form.querySelector(`input[name="${fieldName}"]`);
-                            await encryptAndSetField(field, encKey.dek);
-                        }
-                        await encryptAndSetField(document.getElementById('notes'), encKey.dek);
-                    } catch (error) {
-                        console.error('Encryption failed', error);
-                        return;
+            if (encKey) {
+                try {
+                    for (const fieldName of fields) {
+                        const field = form.querySelector(`input[name="${fieldName}"]`);
+                        await encryptAndSetField(form, field, encKey.dek);
                     }
-                    isFormSubmitted = true;
-                    form.submit();
-                } else {
-                    console.error('Failed to retrieve DEK');
+                    await encryptAndSetField(form, document.getElementById('notes'), encKey.dek);
+                } catch (error) {
+                    console.error('Encryption failed', error);
                     return;
                 }
+                isFormSubmitted = true;
+                form.submit();
+            } else {
+                console.error('Failed to retrieve DEK');
+                return;
             }
         }
     })

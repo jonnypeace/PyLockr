@@ -34,32 +34,32 @@ def init_db():
 
 class User(Base):
     __tablename__ = 'users'
-    id = Column(String(128), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
-    username = Column(String(256), unique=True, nullable=False)
+    id = Column(String(64), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
+    username = Column(String(128), unique=True, nullable=False)
     password_hash = Column(String(128), nullable=False)
     otp_2fa_enc = Column(BLOB, nullable=False)
     initial_setup = Column(Boolean, nullable=False, default=True)
-    edek = Column(String(256), nullable=False)
-    iv = Column(String(128), nullable=False)
-    salt = Column(String(128), nullable=False)
+    edek = Column(String(128), nullable=False)
+    iv = Column(String(64), nullable=False)
+    salt = Column(String(64), nullable=False)
     passwords = relationship("Password", back_populates="user")
     backup_history = relationship("BackupHistory", back_populates="user")
 
 class Password(Base):
     __tablename__ = 'passwords'
-    id = Column(String(128), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
+    id = Column(String(64), primary_key=True, default=lambda: str(uuid.uuid4()), unique=True, nullable=False)
     # id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(128), ForeignKey('users.id'), nullable=False)
-    Name = Column(String(256)) # b64 direct from js. decodes into crypto
-    ivName = Column(String(128)) # b64 direct from js. decodes into bytes
-    Username = Column(String(256)) # b64 direct from js. decodes into crypto
-    ivUsername = Column(String(128)) # b64 direct from js. decodes into bytes
-    Password = Column(String(256)) # b64 direct from js. decodes into crypto
-    ivPassword = Column(String(128)) # b64 direct from js. decodes into bytes
-    Category = Column(String(256)) # b64 direct from js. decodes into crypto
-    ivCategory = Column(String(128)) # b64 direct from js. decodes into bytes
-    Notes = Column(String(4096)) # b64 direct from js. decodes into crypto
-    ivNotes = Column(String(128)) # b64 direct from js. decodes into bytes
+    user_id = Column(String(64), ForeignKey('users.id'), nullable=False)
+    Name = Column(String(128)) # b64 direct from js. decodes into crypto
+    ivName = Column(String(64)) # b64 direct from js. decodes into bytes
+    Username = Column(String(128)) # b64 direct from js. decodes into crypto
+    ivUsername = Column(String(64)) # b64 direct from js. decodes into bytes
+    Password = Column(String(128)) # b64 direct from js. decodes into crypto
+    ivPassword = Column(String(64)) # b64 direct from js. decodes into bytes
+    Category = Column(String(128)) # b64 direct from js. decodes into crypto
+    ivCategory = Column(String(64)) # b64 direct from js. decodes into bytes
+    Notes = Column(String(1024)) # b64 direct from js. decodes into crypto
+    ivNotes = Column(String(64)) # b64 direct from js. decodes into bytes
     user = relationship("User", back_populates="passwords")
 
 class BackupHistory(Base):

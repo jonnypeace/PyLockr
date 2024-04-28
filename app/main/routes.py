@@ -5,12 +5,15 @@ from flask import current_app, render_template, request, redirect, url_for, sess
 from datetime import timedelta, datetime
 from html_sanitizer import Sanitizer
 from flask.views import MethodView
-import re, os, csv, py7zr, time, io, csv, secrets, base64, redis
+import re, os, csv, py7zr, time, io, csv, json, secrets, base64, redis
 from flask_limiter.util import get_remote_address
 from threading import Thread
 from sqlalchemy.exc import SQLAlchemyError
 from app.utils.extensions import limiter
 from app.utils.key_exchange import ValidB64Error, is_valid_base64
+from collections import defaultdict
+from typing import Type
+from sqlalchemy.ext.declarative import DeclarativeMeta
 
 sanitizer = Sanitizer()  # Used for name and username
 logger = PyLockrLogs(name='PyLockr_Main')
@@ -91,20 +94,18 @@ class UploadCSV(BaseAuthenticatedView):
 
     def process_file(self, file_stream):
         csv_reader = csv.reader(file_stream)
-        db_session = Session()
         row_index_dict = {}
-        try:
-            headers = next(csv_reader)
-            row_index_dict = self.check_indexes(headers)
-            dek_b64 = self.redis_client.get_dek(session['user_id'])
-            for row in csv_reader:
-                self.insert_password_row(db_session, row, row_index_dict, dek_b64)
-            db_session.commit()
-        except csv.Error as e:
-            db_session.rollback()
-            raise e
-        finally:
-            db_session.close()
+        with Session() as db_session:
+            try:
+                headers = next(csv_reader)
+                row_index_dict = self.check_indexes(headers)
+                dek_b64 = self.redis_client.get_dek(session['user_id'])
+                for row in csv_reader:
+                    self.insert_password_row(db_session, row, row_index_dict, dek_b64)
+                db_session.commit()
+            except csv.Error as e:
+                db_session.rollback()
+                raise e
 
     @staticmethod
     def check_indexes(row: list):
@@ -185,7 +186,7 @@ class AddPassword(BaseAuthenticatedView):
     def get(self):
         return render_template('add_password.html', nonce=g.nonce)
     def post(self):
-        form_keys = set(Password.__table__.columns.keys()) - {'id', 'user_id', 'user'}
+        form_keys = set(Password.__table__.columns.keys()) - {'id', 'user_id', 'user', '_sa_instance_state'}
         form_dict = {field: request.form.get(field, '') for field in form_keys}
 
         try:
@@ -199,22 +200,49 @@ class AddPassword(BaseAuthenticatedView):
         # Add new password entry
         new_password_entry = Password(**form_dict)
 
-        db_session = Session()
-        try:
-            db_session.add(new_password_entry)
-            db_session.commit()
-            flash('Password added successfully!', 'alert alert-ok')
-        except SQLAlchemyError as e:
-            db_session.rollback()
-            flash('Failed to add password.', 'alert alert-error')
-            logger.error(f"Error adding password: {e}")  # Log or handle the error as needed
-            return redirect(url_for('main.add_password'))
-        finally:
-            db_session.close()
+        with Session() as db_session:
+            try:
+                db_session.add(new_password_entry)
+                db_session.commit()
+                flash('Password added successfully!', 'alert alert-ok')
+            except SQLAlchemyError as e:
+                db_session.rollback()
+                flash('Failed to add password.', 'alert alert-error')
+                logger.error(f"Error adding password: {e}")  # Log or handle the error as needed
+                return redirect(url_for('main.add_password'))
 
         return redirect(url_for('main.dashboard'))  # Adjust the redirect as needed
 
 main.add_url_rule('/add_password', view_func=AddPassword.as_view('add_password'))
+
+def query_to_dict(model: Type[DeclarativeMeta], fields: list, user_id: str)-> defaultdict:
+    """
+    Query specified fields from a model and return a defaultdict
+    where each key corresponds to a field and the value is a list of values for that field.
+
+    :param model: SQLAlchemy model class
+    :param fields: List of field names to query
+    :return: defaultdict with field names as keys and lists of values as values
+    """
+    with Session() as db_session:
+        try:
+            query = db_session.query(*[getattr(model, field) for field in fields]).filter(model.user_id == user_id)
+            results = query.all()
+
+            # Initialize a defaultdict with lists as default values
+            column_lists = defaultdict(list)
+            # Populate the lists
+            for entry in results:
+                for field in fields:
+                    value = getattr(entry, field)
+                    column_lists[field].append(value)
+        except Exception as e:
+            db_session.rollback()
+            flash('Failed to retrieve data from PyLockr db', 'alert alert-error')
+            logger.error(f"Failed to retrieve data from PyLockr db")
+
+    return column_lists
+
 
 class RetrievePasswords(BaseAuthenticatedView):
     def get(self):
@@ -222,17 +250,14 @@ class RetrievePasswords(BaseAuthenticatedView):
         Retrieve passwords route for the password manager table, which uses jQuery DataTables to sort entries.
         Passwords are masked in the DataTables view.
         '''
-        db_session = Session()
-        # Retrieve all entries for the logged-in user, excluding the actual password for security
-        try:
-            password_entries = db_session.query(Password.id, Password.name, Password.username, Password.category).filter_by(user_id=session['user_id']).all()
-        finally:
-            db_session.close()
-        # Prepare data for display, mask the password
-        vault_data = [
-            (entry.id, entry.name, entry.username, entry.category)  # Mask the password
-            for entry in password_entries
-        ]
+        fields: list = ['id',
+                        'Name',
+                        'ivName',
+                        'Username',
+                        'ivUsername',
+                        'Category',
+                        'ivCategory']
+        vault_data = json.dumps(query_to_dict(Password, fields, session['user_id']))
 
         return render_template('retrieve_passwords.html', passwords=vault_data, nonce=g.nonce)
     
@@ -245,21 +270,20 @@ class DeletePassword(BaseAuthenticatedView):
         Delete individual passwords.
         '''
         db_session = Session()
-        try:
-            # Fetch the password entry to be deleted
-            password_entry = db_session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
-            if password_entry:
-                db_session.delete(password_entry)
-                db_session.commit()
-                flash('Password entry deleted successfully.', 'alert alert-ok')
-            else:
-                flash('Password entry not found or not authorized to delete.', 'alert alert-error')
-        except Exception as e:
-            db_session.rollback()
-            flash('Failed to delete password entry.', 'alert alert-error')
-            logger.error(f"Error deleting password: {e}")
-        finally:
-            db_session.close()
+        with Session() as db_session:
+            try:
+                # Fetch the password entry to be deleted
+                password_entry = db_session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
+                if password_entry:
+                    db_session.delete(password_entry)
+                    db_session.commit()
+                    flash('Password entry deleted successfully.', 'alert alert-ok')
+                else:
+                    flash('Password entry not found or not authorized to delete.', 'alert alert-error')
+            except SQLAlchemyError as e:
+                db_session.rollback()
+                flash('Failed to delete password entry.', 'alert alert-error')
+                logger.error(f"Error deleting password")
 
         current_ip = get_remote_address()
         logger.info(f'User successfully deleted password from IP: {current_ip}')
@@ -278,16 +302,15 @@ class DeleteMultiplePasswords(BaseAuthenticatedView):
         # Get the list of selected password IDs
         selected_passwords = request.form.getlist('selected_passwords')
 
-        try:
-            # Delete all selected password entries belonging to the user in one go
-            db_session.query(Password).filter(Password.id.in_(selected_passwords), Password.user_id == session['user_id']).delete(synchronize_session=False)
-            db_session.commit()
-        except SQLAlchemyError as e:  # Catch more specific database errors
-            db_session.rollback()
-            flash('Failed to delete selected password entries.', 'alert alert-error')
-            logger.error(f"Error deleting selected passwords: {e}")
-        finally:
-            db_session.close()
+        with Session() as db_session:
+            try:
+                # Delete all selected password entries belonging to the user in one go
+                db_session.query(Password).filter(Password.id.in_(selected_passwords), Password.user_id == session['user_id']).delete(synchronize_session=False)
+                db_session.commit()
+            except SQLAlchemyError as e:  # Catch more specific database errors
+                db_session.rollback()
+                flash('Failed to delete selected password entries.', 'alert alert-error')
+                logger.error(f"Error deleting selected passwords: {e}")
 
         current_ip = get_remote_address()
         logger.info(f'user successfully deleted {len(selected_passwords)} passwords: IP {current_ip}')
@@ -301,62 +324,48 @@ main.add_url_rule('/delete_multiple_passwords', view_func=DeleteMultiplePassword
 class EditPassword(BaseAuthenticatedView):
     def get(self, password_id):
         # Fetch the password entry to be edited
-        password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
-        
-        dek_b64 = self.redis_client.get_dek(session['user_id'])
-        
-        if password_entry:
-            decrypted_password = decrypt_data_dek(password_entry.encrypted_password, password_entry.iv_password, dek_b64)
-            decrypted_notes = decrypt_data(password_entry.notes)
-            logger.info(f'{password_entry.iv_password=}\n{password_entry.encrypted_password}')
-            return render_template('edit_password.html', name=password_entry.name, username=password_entry.username, ivPass=password_entry.iv_password,
-                                   password=password_entry.encrypted_password,
-                                   notes=decrypted_notes, category=password_entry.category, nonce=g.nonce)
+        data = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
+        form_keys = set(Password.__table__.columns.keys()) - {'user_id', 'user', '_sa_instance_state'}
+        # Automatically map all attributes to a dictionary, excluding SQLAlchemy internal items
+        vault_data = {key: getattr(data, key) for key in form_keys}
+        vault_data = json.dumps(vault_data)
+        if vault_data:
+            return render_template('edit_password.html', passwords=vault_data, nonce=g.nonce)
         else:
             flash('Password not found or access denied', 'alert alert-error')
             return redirect(url_for('main.retrieve_passwords'))
 
     def post(self, password_id):
-        
-        name = sanitizer.sanitize(request.form['name'])
-        username = sanitizer.sanitize(request.form['username'])
-        # encrypted_password = encrypt_data(request.form['password'])
-        category = sanitizer.sanitize(request.form['category'])
-        encrypted_notes = encrypt_data(request.form['notes'])
-
-        dek_b64 = self.redis_client.get_dek(session['user_id'])
-        iv_b64, dek_password_b64 = encrypt_data_dek(request.form['password'], dek_b64)
-
-        # Define maximum lengths
-        max_length_name = 50
-        max_length_username = 50
-        max_length_category = 50
-        max_length_notes = 4096
-
-        if len(name) > max_length_name or len(username) > max_length_username or len(request.form['notes']) > max_length_notes or len(category) > max_length_category:
-            flash("Error: Input data too long.", "alert alert-error")
-            return redirect(url_for('main.edit_password', password_id=password_id))
+        form_keys = set(Password.__table__.columns.keys()) - {'id', 'user_id', 'user'}
+        form_dict = {field: request.form.get(field, '') for field in form_keys}
 
         try:
-            password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
-            if password_entry:
-                password_entry.name = name
-                password_entry.username = username
-                password_entry.encrypted_password = request.form['password']
-                password_entry.iv_password = request.form['ivPass']
-                password_entry.category = category
-                password_entry.notes = encrypted_notes
-                Session.commit()
-                flash('Password entry updated successfully.', 'alert alert-ok')
-            else:
-                flash('Password entry not found.', 'alert alert-error')
-        except IntegrityError as e:
-            Session.rollback()
-            flash('Failed to update password entry.', 'alert alert-error')
-            current_app.logger.error(f"Error updating password: {e}")
-        finally:
-            Session.remove()
+            is_valid_base64(*form_dict.values())
+        except ValidB64Error as e:
+            logger.warning(f'{session["user_id"]}: Failed B64 Validation:\n{e}')
+            flash('Error: B64 Validation Error', 'alert alert-error')
+            return redirect(url_for('main.edit_password', password_id=password_id))
         
+        form_dict['user_id'] = session['user_id']
+
+        # Update password entry
+        with Session() as db_session:
+            try:
+                password_entry = db_session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
+                if password_entry:
+                    for key, value in form_dict.items():
+                        setattr(password_entry, key, value)  # Dynamically update attributes
+                    db_session.commit()
+                    flash('Password entry updated successfully.', 'alert alert-ok')
+                else:
+                    flash('Password entry not found.', 'alert alert-error')
+                    return redirect(url_for('main.edit_password', password_id=password_id))
+            except SQLAlchemyError as e:
+                db_session.rollback()
+                flash('Failed to update password entry.', 'alert alert-error')
+                logger.error(f"Error updating password")
+                return redirect(url_for('main.edit_password', password_id=password_id))
+       
         return redirect(url_for('main.retrieve_passwords'))
 
 # Register the view
@@ -371,8 +380,8 @@ class DecryptPassword(BaseAuthenticatedView):
             password_entry = Session.query(Password).filter_by(id=password_id, user_id=session['user_id']).first()
         finally:
             Session.close()
-        if password_entry and password_entry.encrypted_password:
-            return jsonify({'password': password_entry.encrypted_password, 'iv': password_entry.iv_password}) # Send the decrypted password back
+        if password_entry:
+            return jsonify({'password': password_entry.Password, 'iv': password_entry.ivPassword}) # Send the encrypted password back
         else:
             current_ip = get_remote_address()
             logger.error(f'Issue encountered with user trying to use copy to clipboard: IP {current_ip}')

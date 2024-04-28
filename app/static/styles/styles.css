@@ -500,3 +500,8 @@ table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control::before, tabl
     border-right: 0px solid white !important;
     margin-right: 1em !important;
 }
+
+/* styles.css */
+.hidden {
+    display: none;
+}

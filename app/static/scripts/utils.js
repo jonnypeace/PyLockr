@@ -179,7 +179,7 @@ async function getEdek(publicKey, saltB64, csrfToken, iv) {
 async function decryptData(key, encryptedData, iv) {
     // Assume sharedSecret is already a CryptoKey suitable for decryption
     if (!(key instanceof CryptoKey && key.usages.includes('decrypt'))) {
-        throw new Error("Provided kek is not a valid CryptoKey for decryption.");
+        throw new Error("Provided key is not a valid CryptoKey for decryption.");
     }
     try {
         // Use the shared secret directly to decrypt the DEK
@@ -360,9 +360,14 @@ async function generateAndEncryptDEK(password) {
     return {encryptedDEK, iv, salt};
 }
 
+async function decryptField(dek, data, iv) {
+    const decrypted = await decryptData(dek, base64ToArrayBuffer(data), base64ToArrayBuffer(iv));
+    return new TextDecoder().decode(decrypted);
+}
+
 
 // Properly export your functions
 export { base64ToArrayBuffer, arrayBufferToBase64, decryptDEK,
          keyPairGenerate, importServerPublicKey, getSharedSecret, deriveAESKeyFromSharedSecret, reEncryptDEKWithSharedSecret,
          keyExchangeShare, finalExchange, getDek, getEdek, decryptData, encryptStringWithAesGcm, importAesKeyFromBuffer,
-         hashPassword, generateAndEncryptDEK};
+         hashPassword, generateAndEncryptDEK, decryptField};
