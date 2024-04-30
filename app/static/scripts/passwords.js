@@ -61,7 +61,7 @@ async function encryptAndSetField(form, field, dek) {
             form.querySelector(`input[name="iv${field.name}"]`).value = arrayBufferToBase64(iv);
         }
     }catch (error) {
-        console.error(`Encryption failed for ${field.name}: ${field.value}`, error);
+        console.error(`Encryption failed or setting field values failed`);
     }
 };
 
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     await encryptAndSetField(form, document.getElementById('notes'), encKey.dek);
                 } catch (error) {
-                    console.error('Encryption failed', error);
+                    console.error('Encryption failed');
                     return;
                 }
                 isFormSubmitted = true;

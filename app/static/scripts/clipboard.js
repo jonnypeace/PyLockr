@@ -56,14 +56,14 @@ async function copyToClipboard(passwordId) {
                 await navigator.clipboard.writeText(password);
                 showToast('Password copied to clipboard successfully!');
             } catch (err) {
-                console.error('Failed to copy with Clipboard API: ', err);
+                console.error('Failed to copy with Clipboard API');
                 showToast('Failed to copy password to clipboard.');
             }
         } else {
             fallbackCopyTextToClipboard(password);
         }
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Failed to fetch or decrypt the password.');
         showToast('Failed to fetch or decrypt the password.');
     }
 }
@@ -81,7 +81,7 @@ function fallbackCopyTextToClipboard(text) {
         console.log('Fallback: Copying text command was ' + msg);
         showToast();
     } catch (err) {
-        console.error('Fallback: Oops, unable to copy', err);
+        console.error('Fallback: Oops, unable to copy');
     }
     document.body.removeChild(textarea);
 }

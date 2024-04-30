@@ -37,8 +37,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     isFormSubmitted = true;
                     e.target.submit(); // Submit the form programmatically
                 } catch (error) {
-                    console.error("Error during form preparation:", error);
-                    alert("An error occurred during form preparation. Please try again.");
+                    console.error("Error during key gen and form submission");
+                    alert("Error during key gen and form submission. Please try again.");
                 }
             } else {
                 alert('Passwords do not match. Please try again.');

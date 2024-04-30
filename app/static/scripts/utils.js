@@ -209,7 +209,7 @@ async function encryptStringWithAesGcm(aesKey, passwordString) {
 
         return { encryptedData, iv };
     } catch (error) {
-        console.error("Failed to encrypt data:", error);
+        console.error("Failed to encrypt data");
         throw error; // Rethrow to handle the error externally
     }
 }
@@ -228,7 +228,7 @@ async function importAesKeyFromBuffer(arrayBuffer) {
         );
         return key;
     } catch (error) {
-        console.error("Error importing AES key from ArrayBuffer:", error);
+        console.error("Error importing AES key from ArrayBuffer");
         throw error;  // Rethrow to maintain error context
     }
 }
@@ -248,7 +248,7 @@ async function reEncryptDEKWithSharedSecret(aesKey, data) {
 
         return { encryptedDEK, iv };
     } catch (error) {
-        console.error("Failed to re-encrypt DEK:", error);
+        console.error("Failed to re-encrypt DEK");
         throw error;
     }
 }
@@ -277,7 +277,7 @@ async function keyExchangeShare(publicKey, privateKey, salt, saltB64, dek, info,
         return finalResponse;
     } else {
         // Handle errors or unsuccessful responses
-        console.error("Failed to exchange keys:", await confirmResponse.text());
+        console.error("Failed to exchange keys");
     }
 }
 
@@ -291,7 +291,7 @@ async function finalExchange(edekBase64, ivB64, csrfToken){
         body: JSON.stringify({edekBase64: edekBase64, ivB64: ivB64}),
     });
     if (!finalResponse.ok) {
-        console.error("Failed to process secrets:", await finalResponse.text());
+        console.error("Failed to process secrets");
     }
     return finalResponse.ok;
 }

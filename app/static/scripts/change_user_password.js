@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     isFormSubmitted = true;
                     e.target.submit(); // Submit the form programmatically
                 } catch (error) {
-                    console.error("Error during form preparation:", error);
+                    console.error("Error during form preparation:");
                     alert("An error occurred during form preparation. Please try again.");
                 }
         } else {
