@@ -185,7 +185,7 @@ async function decryptData(key, encryptedData, iv) {
         console.log("Decryption successful");
         return decryptedData;
     } catch (error) {
-        console.error('Error occurred', error);
+        console.error('Error occurred');
         throw error;
     }
 }

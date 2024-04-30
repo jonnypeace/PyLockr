@@ -83,8 +83,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (formType === 'editPass') {
         var encryptedDataElement = document.getElementById('vaultData');
         var encryptedData = encryptedDataElement.dataset.vault;
-        console.log("Data to parse:", encryptedData);
-        console.log("Type of data:", typeof encryptedData);
         const jsonData = JSON.parse(encryptedData);
         await updateEditPass(encKey.dek, jsonData);
     }
