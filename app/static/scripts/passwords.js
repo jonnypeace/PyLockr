@@ -54,7 +54,7 @@ async function togglePasswordVisibility() {
     }
 }
 
-// This is for setting the fields before submitting form data to send to server
+// This is for encrypting the fields before submitting form data to send to server
 async function encryptAndSetField(form, field, dek) {
     try {
         const ivField = form.querySelector(`input[name="iv${field.name}"]`);

@@ -128,16 +128,24 @@ class UploadCSV(BaseAuthenticatedView):
         return row_dict
 
     def insert_password_row(self, db_session, row, row_index_dict, dek_b64):
-        iv_b64, enc_pass_b64 = encrypt_data_dek(row[row_index_dict['password']], dek_b64)
-        alt_iv_b64, alt_enc_pass_b64 = encrypt_data_dek('', dek_b64) # for cols that don't exist
+        iv_b64_name, b64_name = encrypt_data_dek(row[row_index_dict['name']], dek_b64)
+        iv_b64_username, b64_username = encrypt_data_dek(row[row_index_dict['username']], dek_b64)
+        iv_b64_password, b64_password = encrypt_data_dek(row[row_index_dict['password']], dek_b64)
+        iv_b64_category, b64_category = encrypt_data_dek(row[row_index_dict['category']], dek_b64)
+        iv_b64_notes, b64_notes = encrypt_data_dek(row[row_index_dict['notes']], dek_b64)
+        iv_b64_null, b64_null = encrypt_data_dek('', dek_b64) # for cols that don't exist
         password_entry = Password(
             user_id=session['user_id'],
-            name=sanitizer.sanitize(row[row_index_dict['name']]) if row_index_dict['name'] != -1 else '',
-            username=sanitizer.sanitize(row[row_index_dict['username']]) if row_index_dict['username'] != -1 else '',
-            encrypted_password=enc_pass_b64 if row_index_dict['password'] != -1 else alt_enc_pass_b64,
-            iv_password=iv_b64 if row_index_dict['password'] != -1 else alt_iv_b64,
-            category=sanitizer.sanitize(row[row_index_dict.get('category')]) if row_index_dict.get('category') != -1 else '',
-            notes=encrypt_data(row[row_index_dict['notes']]) if row_index_dict['notes'] != -1 else encrypt_data('')
+            Name=b64_name if row_index_dict['name'] != -1 else b64_null,
+            ivName=iv_b64_name if row_index_dict['name'] != -1 else iv_b64_null,
+            Username=b64_username if row_index_dict['username'] != -1 else b64_null,
+            ivUsername=iv_b64_username if row_index_dict['username'] != -1 else iv_b64_null,
+            Password=b64_password if row_index_dict['password'] != -1 else b64_null,
+            ivPassword=iv_b64_password if row_index_dict['password'] != -1 else iv_b64_null,
+            Category=b64_category if row_index_dict.get('category') != -1 else b64_null,
+            ivCategory=iv_b64_category if row_index_dict.get('category') != -1 else iv_b64_null,
+            Notes=b64_notes if row_index_dict['notes'] != -1 else b64_null,
+            ivNotes=iv_b64_notes if row_index_dict['notes'] != -1 else iv_b64_null
         )
         db_session.add(password_entry)
 
@@ -414,7 +422,11 @@ class Backup(BaseAuthenticatedView):
             password_entries = Session.query(Password).filter_by(user_id=user_id).all()
             # Insert a record into backup_history
             # Prepare decrypted data for CSV
-            decrypted_data = [[entry.name, entry.username, decrypt_data_dek(entry.encrypted_password, entry.iv_password, dek), entry.category, decrypt_data(entry.notes)] for entry in password_entries]
+            decrypted_data = [[decrypt_data_dek(entry.Name, entry.ivName, dek),
+                               decrypt_data_dek(entry.Username, entry.ivUsername, dek),
+                               decrypt_data_dek(entry.Password, entry.ivPassword, dek),
+                               decrypt_data_dek(entry.Category, entry.ivCategory, dek),
+                               decrypt_data_dek(entry.Notes, entry.ivNotes, dek)] for entry in password_entries]
             new_backup_history = BackupHistory(user_id=user_id)  # Include user_id here
             Session.add(new_backup_history)
             Session.commit()
