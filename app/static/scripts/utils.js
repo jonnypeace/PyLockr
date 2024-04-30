@@ -51,7 +51,7 @@ async function decryptDEK(password, encryptedDEK, iv, salt) {
         kek,
         encryptedDEK);
 
-    return decryptedDEK; // Return the decrypted DEK for further use
+    return decryptedDEK;
 }
 
 async function keyPairGenerate() {
@@ -61,17 +61,14 @@ async function keyPairGenerate() {
         ["deriveBits"] // 'deriveKey' usage is not required for ECDH in Web Crypto API
     );
 
-    // Export the public key
     const publicKey = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
 
-    // Keep the private key in its secure, non-exported format
-    // Convert the exported public key to a format (e.g., Base64) for transmission
-    const publicKeyBase64 = arrayBufferToBase64(publicKey); // Assuming arrayBufferToBase64 is defined elsewhere
+    const publicKeyBase64 = arrayBufferToBase64(publicKey);
 
     return { publicKey: publicKeyBase64, privateKey: keyPair.privateKey };
 };
 
-// Example of importing the server's public key in the client
+// Importing the server's public key in the client
 async function importServerPublicKey(serverPublicKeyBase64) {
     const serverPublicKeyBytes = window.atob(serverPublicKeyBase64);
     const serverPublicKeyArrayBuffer = new Uint8Array(serverPublicKeyBytes.length);
@@ -114,7 +111,6 @@ async function deriveAESKeyFromSharedSecret(sharedSecret, salt, info) {
         false, // Whether the key is extractable
         ["deriveKey"] // Specify the use for key derivation
     );
-    // console.log(`${sharedSecretKey}`)
     // Derive the AES key using HKDF
     const aesKey = await window.crypto.subtle.deriveKey(
         {
@@ -129,13 +125,12 @@ async function deriveAESKeyFromSharedSecret(sharedSecret, salt, info) {
             length: 256 // AES key length in bits
         },
         true, // Whether the derived key is extractable
-        ["encrypt", "decrypt"] // The derived key can be used for these operations
+        ["encrypt", "decrypt"] 
     );
 
     return aesKey;
 }
 
-///////////////////////////////////////
 
 async function getDek() {
     const { publicKey, privateKey } = await keyPairGenerate();
@@ -146,7 +141,6 @@ async function getDek() {
     const data = await getEdek(publicKey, saltB64, csrfToken, iv);
     const info = "ECDH AES-GCM"; // Ensure this info is the same on both client and server
     if (data) {
-        // console.log("Complete data received:", data.serverPublicKey);
         const sharedSecret = await getSharedSecret(privateKey, data.serverPublicKey);
         const kek = await deriveAESKeyFromSharedSecret(sharedSecret.sharedSecret, salt, info) 
         const dekArrayBuffer = await decryptData(kek, data.edek, iv);
@@ -159,10 +153,10 @@ async function getDek() {
 async function getEdek(publicKey, saltB64, csrfToken, iv) {
     const ivB64 = arrayBufferToBase64(iv)
     const confirmResponse = await fetch('/get_user_edek_iv', {
-        method: 'POST',  // Changed to GET since no body data is needed
+        method: 'POST', 
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken  // CSRF token is still needed if your server requires it for all requests
+            'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({publicKey: publicKey, salt: saltB64, iv: ivB64}),
     });
@@ -177,12 +171,10 @@ async function getEdek(publicKey, saltB64, csrfToken, iv) {
 }
 
 async function decryptData(key, encryptedData, iv) {
-    // Assume sharedSecret is already a CryptoKey suitable for decryption
     if (!(key instanceof CryptoKey && key.usages.includes('decrypt'))) {
         throw new Error("Provided key is not a valid CryptoKey for decryption.");
     }
     try {
-        // Use the shared secret directly to decrypt the DEK
         const decryptedData = await window.crypto.subtle.decrypt(
             {
                 name: "AES-GCM",
@@ -191,7 +183,7 @@ async function decryptData(key, encryptedData, iv) {
             key,
             encryptedData);
         console.log("Decryption successful");
-        return decryptedData; // Return the decrypted DEK for further use
+        return decryptedData;
     } catch (error) {
         console.error('Error occurred', error);
         throw error;
@@ -244,7 +236,6 @@ async function importAesKeyFromBuffer(arrayBuffer) {
 
 
 async function reEncryptDEKWithSharedSecret(aesKey, data) {
-    // Ensure the Initialization Vector (IV) for AES-GCM
     const iv = window.crypto.getRandomValues(new Uint8Array(12)); // IV for AES-GCM
 
     try {
@@ -258,7 +249,7 @@ async function reEncryptDEKWithSharedSecret(aesKey, data) {
         return { encryptedDEK, iv };
     } catch (error) {
         console.error("Failed to re-encrypt DEK:", error);
-        throw error; // Proper error handling
+        throw error;
     }
 }
 
@@ -320,7 +311,6 @@ async function hashPassword(password) {
 }
 
 async function generateAndEncryptDEK(password) {
-    // Placeholder function to generate a DEK - in practice, this could be any secure, random value
     const dek = window.crypto.getRandomValues(new Uint8Array(32)); // For a 256-bit key
 
     // Derive KEK from the password
@@ -338,7 +328,7 @@ async function generateAndEncryptDEK(password) {
     const kek = await window.crypto.subtle.deriveKey(
         {
             "name": "PBKDF2",
-            salt: salt, // Use a unique salt for production
+            salt: salt,
             iterations: 100000,
             hash: "SHA-256"
         },

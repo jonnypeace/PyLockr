@@ -27,7 +27,7 @@ function createToastContainer() {
 
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; 
-    const backupForm = document.getElementById('backupForm'); // Ensure your form has this ID
+    const backupForm = document.getElementById('backupForm');
     backupForm.addEventListener('submit', async function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; 
-    const csvForm = document.getElementById('csvForm'); // Ensure your form has this ID
+    const csvForm = document.getElementById('csvForm');
     csvForm.addEventListener('submit', async function(e) {
         if (!isFormSubmitted) {
             e.preventDefault();

@@ -1,45 +1,5 @@
-import {arrayBufferToBase64, hashPassword} from './utils.js';
+import {arrayBufferToBase64, hashPassword, generateAndEncryptDEK} from './utils.js';
 
-async function generateAndEncryptDEK(password) {
-    // Placeholder function to generate a DEK - in practice, this could be any secure, random value
-    const dek = window.crypto.getRandomValues(new Uint8Array(32)); // For a 256-bit key
-
-    // Derive KEK from the password
-    const enc = new TextEncoder();
-    const keyMaterial = await window.crypto.subtle.importKey(
-        "raw",
-        enc.encode(password),
-        {"name": "PBKDF2"},
-        false,
-        ["deriveKey"]);
-
-    // Generate a unique salt for each key derivation
-    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-
-    const kek = await window.crypto.subtle.deriveKey(
-        {
-            "name": "PBKDF2",
-            salt: salt, // Use a unique salt for production
-            iterations: 100000,
-            hash: "SHA-256"
-        },
-        keyMaterial,
-        { "name": "AES-GCM", "length": 256}, // KEK details
-        true,
-        [ "encrypt", "decrypt" ]);
-
-    // Encrypt DEK with KEK
-    const iv = window.crypto.getRandomValues(new Uint8Array(12)); // Initialization vector for AES-GCM
-    const encryptedDEK = await window.crypto.subtle.encrypt(
-        {
-            name: "AES-GCM",
-            iv: iv
-        },
-        kek,
-        dek);
-
-    return {encryptedDEK, iv, salt};
-}
 
 document.addEventListener('DOMContentLoaded', (event) => {
     let isFormSubmitted = false; // Flag to prevent infinite submission loop

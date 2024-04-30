@@ -1,12 +1,13 @@
-import { base64ToArrayBuffer, decryptDEK, keyPairGenerate,
-        keyExchangeShare, hashPassword} from './utils.js';
+import { base64ToArrayBuffer, decryptDEK, keyPairGenerate, keyExchangeShare, hashPassword} from './utils.js';
+
+
 
 async function authenticateUser(username, password, csrfToken) {
     const authResponse = await fetch('/authenticate', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken // Include CSRF token in the request headers
+            'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({username: username, password: password}),
     });
@@ -17,12 +18,9 @@ async function authenticateUser(username, password, csrfToken) {
     return { encryptedDEK: encryptedDEK, iv: iv, saltAuth: saltAuth };
 }
 
-///////////////////
-
 
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('loginForm');
-    // Assume csrf_token is available either as a hidden input field in the form or set elsewhere
 
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -46,17 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const saltB64 = window.btoa(String.fromCharCode.apply(null, salt));
             const finalResponse = await keyExchangeShare(publicKey, privateKey, salt, saltB64, dek, info, csrfToken);
             if (finalResponse) {
-                // Assuming your async operations are successful...
+                // Assuming async operations are successful...
                 passwordField.value = hashedPassword
                 form.submit(); // Proceed with traditional form submission
             }
             else {
                 console.error('An error occurred');
-                // Handle the error, display feedback to the user
             }
         } catch (error) {
             console.error('Authentication error');
-            // Implement user feedback based on the error
         }
     });
 });

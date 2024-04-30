@@ -111,9 +111,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     var encryptedDataElement = document.getElementById('vaultData');
     var encryptedData = encryptedDataElement.dataset.vault;
 
-    // Assuming decryptData is your function to decrypt the data
-    //const decryptedData = decryptData(encryptedData);  // You will need to define this function based on your encryption
-
     if (encryptedData && encryptedData !== "{}") {
         await updateTableWithData(JSON.parse(encryptedData));
     }
