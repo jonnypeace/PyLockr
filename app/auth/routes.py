@@ -5,8 +5,9 @@ from flask import render_template, request, redirect, url_for, session, flash, c
 import re,secrets, os
 from app.utils.db_utils import (authenticate_user, add_user, update_user_password,
                                 decrypt_data, update_initial_setup, retrieve_edek,
-                                validate_hashed_password, RedisComms)
-from app.utils.key_exchange import shared_secret_exchange, derive_aes_key_from_shared_secret, return_new_key_exchanged_edek, is_valid_base64
+                                validate_hashed_password, RedisComms, encrypt_data,
+                                encrypt_with_new_dek, ensure_old_dek_remains)
+from app.utils.key_exchange import shared_secret_exchange, derive_aes_key_from_shared_secret, return_new_key_exchanged_edek, is_valid_base64, ValidB64Error
 from app.utils.pylockr_logging import *
 from flask.views import MethodView
 from html_sanitizer import Sanitizer
@@ -244,6 +245,16 @@ class Login(MethodView):
         requested_ip = get_remote_address()
         user = authenticate_user(username, hashed_password)
 
+        if user.change_user_pass:
+            redis_client = RedisComms()
+            new_dek = redis_client.get_dek(user.id)
+            old_dek = decrypt_data(user.temporary_dek, decoder=False)
+            if encrypt_with_new_dek(old_dek, new_dek, user.id):
+                logger.info(f'User {user.username} Completed Change User Password, and re-encrypted all user data')
+            else:
+                logger.error(f'Username {user.username} error when attempting to re-encrypt all data')
+                ensure_old_dek_remains(user.temporary_dek, user.id)
+
         if user:
             session['temp_user_id'] = user.id # Needed for 2FA
             session['username'] = user.username
@@ -292,10 +303,13 @@ class ChangeUserPass(BaseAuthView):
             return redirect(url_for('auth.change_user_password'))
 
 
-        # if is_valid_base64():
+        if not is_valid_base64(edek, iv, salt):
+            raise ValidB64Error('Change User Pass received invalid base64 encoded data')
 
         requested_ip = get_remote_address()
         username = session.get('username')
+
+        temporary_dek = encrypt_data(self.redis_client.get_dek(session['user_id']), encoder=False)
 
         # Password complexity check
         if not validate_hashed_password(new_password):
@@ -310,7 +324,7 @@ class ChangeUserPass(BaseAuthView):
 
         # Attempt to update the user's password
         try:
-            if update_user_password(username, current_password, new_password, edek, iv, salt):
+            if update_user_password(username, current_password, new_password, edek, iv, salt, temporary_dek):
                 flash('Password successfully updated.', 'alert alert-ok')
                 session.clear()
                 return redirect(url_for('main.home'))

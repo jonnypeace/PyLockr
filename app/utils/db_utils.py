@@ -6,12 +6,13 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func
 from pathlib import Path
-import os, uuid, logging, pyotp, base64, redis
+import os, uuid, logging, pyotp, base64, redis, re
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import IntegrityError
 from flask import current_app
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = PyLockrLogs(name='DB_UTILS')
 
@@ -42,6 +43,8 @@ class User(Base):
     edek = Column(String(128), nullable=False)
     iv = Column(String(64), nullable=False)
     salt = Column(String(64), nullable=False)
+    temporary_dek = Column(LargeBinary, nullable=True)
+    change_user_pass = Column(Boolean, default=False)
     passwords = relationship("Password", back_populates="user")
     backup_history = relationship("BackupHistory", back_populates="user")
 
@@ -132,7 +135,7 @@ def authenticate_user(username, hashed_password):
     session.close()
     return False
 
-def update_user_password(username, current_password, new_password, edek, iv, salt):
+def update_user_password(username, current_password, new_password, edek, iv, salt, temporary_dek):
     '''Update the specified user's password.'''
     session = Session()
     try:
@@ -145,6 +148,8 @@ def update_user_password(username, current_password, new_password, edek, iv, sal
             user.edek = edek
             user.iv = iv
             user.salt = salt
+            user.change_user_pass = True
+            user.temporary_dek = temporary_dek
             session.commit()
             logger.info(f'User successfully changed password for username: {username}')
             return True
@@ -192,10 +197,8 @@ def decrypt_data(encrypted_data, decoder=True):
 
 def encrypt_data_dek(data, dek):
     # Decode the DEK from Base64
-    # dek = base64.b64decode(dek_b64)
     aesgcm = AESGCM(dek)
     # For AESGCM, an IV should be 12 bytes long and unique for each encryption
-    # iv = AESGCM.generate_iv(12)
     iv = os.urandom(12)
     # Encrypt the data. AESGCM requires bytes, so ensure `data` is bytes
     encrypted_data = aesgcm.encrypt(iv, data.encode(), None)
@@ -218,7 +221,6 @@ def decrypt_data_dek(encrypted_data_b64, iv_b64, dek):
         return False
 
 
-import re
 
 def validate_hashed_password(hashed_password):
     """Validate the hashed password received from the client.
@@ -237,6 +239,47 @@ def validate_hashed_password(hashed_password):
         return True
     else:
         return False
+
+def ensure_old_dek_remains(temporary_dek, user_id):
+    with Session() as db_session:
+        try:
+            user = db_session.query(User).filter_by(id=user_id).first()
+            user.change_user_pass = True
+            user.temporary_dek = temporary_dek
+            db_session.commit()
+        except SQLAlchemyError as e:
+            logger.error('Unable to store old dek in database')
+        
+    
+def encrypt_with_new_dek(old_dek, new_dek, user_id):
+    with Session() as db_session:
+        try:
+            data = db_session.query(Password).filter_by(user_id=user_id).all()
+
+            for row in data:
+                row.Name = decrypt_data_dek(row.Name, row.ivName, old_dek)
+                row.Username = decrypt_data_dek(row.Username, row.ivUsername, old_dek)
+                row.Password = decrypt_data_dek(row.Password, row.ivPassword, old_dek)
+                row.Category = decrypt_data_dek(row.Category, row.ivCategory, old_dek)
+                row.Notes = decrypt_data_dek(row.Notes, row.ivNotes, old_dek)
+
+                row.ivName, row.Name = encrypt_data_dek(row.Name, new_dek)
+                row.ivUsername, row.Username = encrypt_data_dek(row.Username, new_dek)
+                row.ivPassword, row.Password = encrypt_data_dek(row.Password, new_dek)
+                row.ivCategory, row.Category = encrypt_data_dek(row.Category, new_dek)
+                row.ivNotes, row.Notes = encrypt_data_dek(row.Notes, new_dek)
+            
+            user = db_session.query(User).filter_by(id=user_id).first()
+            user.change_user_pass = False
+            user.temporary_dek = b''
+            db_session.commit()
+            return True
+        except SQLAlchemyError as e:
+            logger.error(f'Database Error\n{e}')
+        except Exception as e:
+            logger.error(f'Unknown Error Occured\n{e}')
+    
+    return False
 
 
 class RedisComms:
