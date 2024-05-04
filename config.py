@@ -22,7 +22,7 @@ class Config:
     else:
         raise ValueError("No FERNET_KEY found in environment variables.")
 
-    secure_cookies =  os.environ.get('SECURE_COOKIE_HTTPS', 'False')
+    secure_cookies =  os.environ.get('SECURE_COOKIE_HTTPS', True)
 
     # Convert the string to a boolean
     SESSION_COOKIE_SECURE = secure_cookies.lower() in ['true', '1']
