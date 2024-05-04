@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: ./dockerfiles/Dockerfile
-    ports:
-      - "5000:5000"
+    # ports:
+    #   - "5000:5000"
     volumes:
       - .:/usr/src/app
       - ./config/ssl/ca-cert.pem:/usr/src/app/ssl/ca-cert.pem
@@ -80,6 +80,19 @@ services:
       - ./config/ssl/server-key.pem:/etc/mysql/ssl/server-key.pem
       - ./config/ssl/ca-cert.pem:/etc/mysql/ssl/ca-cert.pem
 
+    networks:
+      - pylockr-network
+        
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./config/nginx/ssl:/etc/ssl/private
+    depends_on:
+      - web
     networks:
       - pylockr-network
 
