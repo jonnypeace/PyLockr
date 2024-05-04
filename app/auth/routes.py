@@ -98,7 +98,7 @@ class BaseAuthView(MethodView):
         try:
             self.redis_client.extend_dek_ttl(user_id)
         except Exception as e:
-            logger.error(f"Error extending DEK TTL for user {user_id}: {e}")
+            logger.error(f"Error extending DEK TTL for user {user_id}")
             # Handle the error as appropriate for your application
 
 
@@ -107,6 +107,8 @@ class Logout(MethodView):
         '''
         Logs out and clears the session and redirects to homepage.
         '''
+        redis_client = RedisComms()  # Initialize your Redis communication class
+        redis_client.delete_dek(session['user_id'])
         session.clear()
         flash('You have been logged out.', 'alert alert-ok')
         return redirect(url_for('main.home'))
@@ -126,10 +128,9 @@ class GetEdekIV(BaseAuthView):
                                                                             data['salt'],
                                                                             data['publicKey'],
                                                                             data['iv'])
-            # logger.info(f'{edek_b64=}, {server_public_key_b64}')
             return jsonify({'edek': edek_b64, 'serverPubKeyB64': server_public_key_b64}), 200
         except Exception as e:
-            logger.error(e)
+            logger.error('Error with key exchange')
             return jsonify({'error': 'Key Error'}), 404
 
 # Register the route for handling the AJAX request
@@ -185,7 +186,7 @@ class KeyExchange(BaseAuthView):
             return jsonify({'serverPublicKey': server_public_key_b64})
         
         except Exception as e:
-            logger.error(f'Error during Key Communication\n{e}')
+            logger.error(f'Error during Key Communication')
             return jsonify({'error': 'Key Comms Error'}), 500
     
 auth.add_url_rule('/keyexchange', view_func=KeyExchange.as_view('keyexchange'))
@@ -217,7 +218,7 @@ class SharedSecretDecrypt(BaseAuthView):
             return jsonify({'success': 'key exchange successful'}), 200
 
         except InvalidTag as e:
-            logger.error(f'Most likely you have incorrectly formatted cryptography, or incorrect credentials. Check formatting\n{e}')
+            logger.error(f'Most likely you have incorrectly formatted cryptography, or incorrect credentials. Check formatting')
             return jsonify({'error': 'Incorrect Format'}), 500
 
 auth.add_url_rule('/secretprocessing', view_func=SharedSecretDecrypt.as_view('secretprocessing'))
@@ -251,7 +252,7 @@ class Login(MethodView):
             try:
                 session['remember_me'] = check_remember_me_cookie(user.id)
             except CookieIntegrityError as CIE:
-                logger.error(f'Cookie Does not contain remember_me field.\n{CIE}')
+                logger.error(f'Cookie Does not contain remember_me field.')
             if session['remember_me']:
                 # Proceed without 2FA
                 session['user_id'] = session.pop('temp_user_id')
@@ -287,7 +288,7 @@ class ChangeUserPass(BaseAuthView):
             iv = request.form['iv']
             salt = request.form['salt']
         except TypeError as e:
-            logger.error(f'Requested information inappropriate\n{e}')
+            logger.error(f'Requested information inappropriate')
             return redirect(url_for('auth.change_user_password'))
 
 
@@ -318,7 +319,7 @@ class ChangeUserPass(BaseAuthView):
                 return redirect(url_for('auth.change_user_password'))
         except Exception as e:
             flash('Current password is incorrect or update failed.', 'alert alert-error')
-            logger.error(f'Username/Password update failed.\n{e}')
+            logger.error(f'Username/Password update failed.')
             return redirect(url_for('auth.change_user_password'))
 
 

@@ -25,7 +25,7 @@ DB_PATH = os.environ.get('DB_PATH')
 if DB_PATH is None:
     raise ValueError('DB_PATH environment variable not set in .env')
 
-engine = create_engine(DB_PATH, echo=True) # use echo=True for debugging
+engine = create_engine(DB_PATH, echo=False) # use echo=True for debugging
 Session = scoped_session(sessionmaker(bind=engine, autoflush=False))
 
 def init_db():
@@ -156,7 +156,7 @@ def update_user_password(username, current_password, new_password, edek, iv, sal
             return False  # Indicates user does not exist
     except IntegrityError as e:
         session.rollback()
-        logger.error(f'Error updating password for {username}: {e}')
+        logger.error(f'Error updating password for {username}')
         return False
     finally:
         session.close()
@@ -214,7 +214,7 @@ def decrypt_data_dek(encrypted_data_b64, iv_b64, dek):
         # Return the decrypted data as a string
         return data.decode()
     except Exception as e:
-        logger.error(f'Error handling data decryption using dek\n{e}')
+        logger.error(f'Error handling data decryption using dek')
         return False
 
 
@@ -270,7 +270,7 @@ class RedisComms:
             logger.info("Connected to Redis with TLS successfully.")
 
         except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.error(f"Failed to connect to Redis")
         
     def get_dek(self, user_id):
         try:
@@ -283,7 +283,7 @@ class RedisComms:
                 logger.warning("DEK not found.")
                 return None
         except Exception as e:
-            logger.error(f"Error retrieving DEK: {e}")
+            logger.error(f"Error retrieving DEK")
             return None
 
     def send_dek(self, user_id, dek):
@@ -293,7 +293,7 @@ class RedisComms:
             self.redis_client.set(f"user:{user_id}:dek", enc_dek, ex=1800)  # Expires in 30mins
             logger.info("DEK sent successfully.")
         except Exception as e:
-            logger.error(f"Error sending DEK: {e}")
+            logger.error(f"Error sending DEK")
 
     def get_secret(self, user_id):
         try:
@@ -306,7 +306,7 @@ class RedisComms:
                 logger.warning("SharedSecret not found.")
                 return None
         except Exception as e:
-            logger.error(f"Error retrieving Shared_secret: {e}")
+            logger.error(f"Error retrieving Shared_secret")
             return None
 
     def send_secret(self, user_id, shared_secret):
@@ -316,7 +316,7 @@ class RedisComms:
             self.redis_client.set(f"user:{user_id}:sharedSecret", enc_secret, ex=1800)  # Expires in 30mins
             logger.info("Shared Secret sent successfully.")
         except Exception as e:
-            logger.error(f"Error sending Shared Secret: {e}")
+            logger.error(f"Error sending Shared Secret")
 
     def get_salt(self, user_id):
         try:
@@ -329,7 +329,7 @@ class RedisComms:
                 logger.warning("salt not found.")
                 return None
         except Exception as e:
-            logger.error(f"Error retrieving salt: {e}")
+            logger.error(f"Error retrieving salt")
             return None
         
     def send_salt(self, user_id, salt):
@@ -340,13 +340,16 @@ class RedisComms:
             self.redis_client.set(f"user:{user_id}:salt", enc_salt, ex=1800)  # Expires in 30mins
             logger.info("Salt sent successfully.")
         except Exception as e:
-            logger.error(f"Error sending Salt: {e}")
+            logger.error(f"Error sending Salt")
 
     def delete_secret(self, user_id):
         self.redis_client.delete(f"user:{user_id}:sharedSecret")
 
     def delete_salt(self, user_id):
         self.redis_client.delete(f"user:{user_id}:salt")
+
+    def delete_dek(self, user_id):
+        self.redis_client.delete(f"user:{user_id}:dek")
 
     def extend_dek_ttl(self, user_id):
         try:
@@ -357,4 +360,4 @@ class RedisComms:
             else:
                 logger.warning("DEK does not exist, no TTL to extend.")
         except Exception as e:
-            logger.error(f"Error extending DEK TTL: {e}")
+            logger.error(f"Error extending DEK TTL")

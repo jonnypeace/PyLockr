@@ -80,7 +80,7 @@ class UploadCSV(BaseAuthenticatedView):
             self.process_file(file_stream)
             flash('CSV File successfully uploaded', 'alert alert-ok')
         except Exception as e:
-            logger.error(f'Error processing the file:\n{e}')
+            logger.error(f'Error processing the file')
             flash(f'Unknown Error processing the file', 'alert alert-error')
         return redirect(url_for('main.dashboard'))
 
@@ -216,7 +216,7 @@ class AddPassword(BaseAuthenticatedView):
             except SQLAlchemyError as e:
                 db_session.rollback()
                 flash('Failed to add password.', 'alert alert-error')
-                logger.error(f"Error adding password: {e}")  # Log or handle the error as needed
+                logger.error(f"Error adding password")  # Log or handle the error as needed
                 return redirect(url_for('main.add_password'))
 
         return redirect(url_for('main.dashboard'))  # Adjust the redirect as needed
@@ -318,7 +318,7 @@ class DeleteMultiplePasswords(BaseAuthenticatedView):
             except SQLAlchemyError as e:  # Catch more specific database errors
                 db_session.rollback()
                 flash('Failed to delete selected password entries.', 'alert alert-error')
-                logger.error(f"Error deleting selected passwords: {e}")
+                logger.error(f"Error deleting selected passwords")
 
         current_ip = get_remote_address()
         logger.info(f'user successfully deleted {len(selected_passwords)} passwords: IP {current_ip}')
