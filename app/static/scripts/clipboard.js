@@ -124,35 +124,32 @@ document.addEventListener('DOMContentLoaded', async function() {
         displayBuffer: 10 // Adjust this value to preload more rows
         }
     });
-
-
-    var deleteButtons = document.querySelectorAll('.delete-btn');
-    deleteButtons.forEach(function(button) {
-      button.addEventListener('click', function() {
-        var passwordId = this.getAttribute('data-password-id');
-        var form = document.createElement('form');
-        form.style.display = 'none';
-        form.method = 'POST';
-  
-        // Construct the URL for the Flask route directly
-        form.action = '/delete_password/' + passwordId;
-  
-        // CSRF Token
-        var csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrf_token';
-        csrfInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        form.appendChild(csrfInput);
-  
-        document.body.appendChild(form);
-  
-        if (confirm('Are you sure you want to delete this password?')) {
-          form.submit();
-        }
-      });
-    });
   });
 
+// Event delegation for the Delete button
+$(document).on('click', '.delete-btn', function() {
+    console.log('delete button pressed');
+    var passwordId = $(this).data('password-id');
+    var form = document.createElement('form');
+    form.style.display = 'none';
+    form.method = 'POST';
+
+    // Construct the URL for the Flask route directly
+    form.action = '/delete_password/' + passwordId;
+
+    // CSRF Token
+    var csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = $('meta[name="csrf-token"]').attr('content');
+    form.appendChild(csrfInput);
+
+    document.body.appendChild(form);
+
+    if (confirm('Are you sure you want to delete this password?')) {
+        form.submit();
+    }
+});
 
 // Select All Button
 $('#selectAllBtn').on('click', function() {
