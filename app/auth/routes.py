@@ -244,18 +244,20 @@ class Login(MethodView):
         
         requested_ip = get_remote_address()
         user = authenticate_user(username, hashed_password)
-
-        if user.change_user_pass:
-            redis_client = RedisComms()
-            new_dek = redis_client.get_dek(user.id)
-            old_dek = decrypt_data(user.temporary_dek, decoder=False)
-            if encrypt_with_new_dek(old_dek, new_dek, user.id):
-                logger.info(f'User {user.username} Completed Change User Password, and re-encrypted all user data')
-            else:
-                logger.error(f'Username {user.username} error when attempting to re-encrypt all data')
-                ensure_old_dek_remains(user.temporary_dek, user.id)
+        
+        def check_change_user_pass():
+            if user.change_user_pass:
+                redis_client = RedisComms()
+                new_dek = redis_client.get_dek(user.id)
+                old_dek = decrypt_data(user.temporary_dek, decoder=False)
+                if encrypt_with_new_dek(old_dek, new_dek, user.id):
+                    logger.info(f'User {user.username} Completed Change User Password, and re-encrypted all user data')
+                else:
+                    logger.error(f'Username {user.username} error when attempting to re-encrypt all data')
+                    ensure_old_dek_remains(user.temporary_dek, user.id)
 
         if user:
+            check_change_user_pass()
             session['temp_user_id'] = user.id # Needed for 2FA
             session['username'] = user.username
             session['2fa_otp'] = user.otp_2fa_enc
