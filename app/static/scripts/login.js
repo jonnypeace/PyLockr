@@ -13,6 +13,7 @@ async function authenticateUser(username, password, csrfToken) {
     });
     const { encryptedDEK, iv, saltAuth } = await authResponse.json();
     if (!authResponse.ok) {
+        alert('Authentication Failed')
         throw new Error('Authentication failed');
     }
     return { encryptedDEK: encryptedDEK, iv: iv, saltAuth: saltAuth };
