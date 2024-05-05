@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from flask import Flask, g,request,session,abort,send_from_directory
+from flask import Flask, g,request,session,abort,send_from_directory, jsonify
 from .main import main as main_blueprint
 from .auth import auth as auth_blueprint
 from config import Config
