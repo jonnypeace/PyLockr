@@ -32,12 +32,12 @@ def create_app():
         trusted_domain = os.environ.get('TRUSTED_DOMAIN', 'laptop.home')
         csp_policy = (
             "default-src 'self';"
-            f"script-src 'self' https://code.jquery.com https://cdn.datatables.net 'nonce-{nonce}';"
-            "style-src 'self' https://cdn.datatables.net;"
+            f"script-src 'self' 'nonce-{nonce}' https://{trusted_domain} https://code.jquery.com https://cdn.datatables.net;"
+            f"style-src 'self' https://cdn.datatables.net;"
             "object-src 'none';"
             "img-src 'self' data:;"
-            "report-to default;"
-            #"report-uri /csp-report-endpoint;"
+            #"report-to default;"
+            "report-uri /csp-report-endpoint;"
             "connect-src 'self';"
             f"form-action 'self' https://{trusted_domain};"
             f"frame-ancestors 'self' https://{trusted_domain};"
@@ -74,15 +74,36 @@ def create_app():
 
         return response
 
+#    @app.route('/csp-report-endpoint', methods=['POST'])
+#    def csp_report():
+#        logger.info('incoming csp report')
+#        report = request.get_json()
+#        if report is None:
+#            logger.error("CSP Report is empty or not JSON.")
+#            return '', 204
+#        else:
+#            logger.warning(f"CSP Violation: {report}")
+#            return '', 204
+
     @app.route('/csp-report-endpoint', methods=['POST'])
     def csp_report():
-        report = request.get_json()
-        if report is None:
-            logger.error("CSP Report is empty or not JSON.")
-            return '', 204
+        logger.info('incoming csp report')
+        content_type = request.content_type
+        logger.info(f'Content-Type: {content_type}')  # Log the Content-Type
+        if content_type == "application/csp-report" or content_type == "application/json":
+            try:
+                # Decode the binary data
+                decoded_data = request.data.decode('utf-8')
+                report = json.loads(decoded_data)
+                logger.warning(f"CSP Violation: {report}")
+            except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                logger.error(f"Failed to decode JSON. Error: {e}")
+                return jsonify({"error": "Failed to decode JSON"}), 400
         else:
-            logger.warning(f"CSP Violation: {report}")
-            return '', 204
+            app.logger.error(f"Unsupported content type: {content_type}")
+            return jsonify({"error": "Unsupported Media Type"}), 415
+        return '', 204
+
 
     @app.context_processor
     def inject_csrf_token():
@@ -95,10 +116,11 @@ def create_app():
     def check_csrf_token():
         # Only perform CSRF check for POST requests
         # if request.method == "POST" and not request.endpoint in ['auth.logout', 'main.decrypt_password']:
-        if request.method == "POST" and not request.endpoint in ['auth.logout']:
+        if request.method == "POST" and not request.endpoint in ['auth.logout', 'csp_report', 'csp-report-endpoint']:
             submitted_token = request.headers.get('X-CSRFToken') or request.form.get('csrf_token')
             # Verify CSRF token
             if not submitted_token or submitted_token != session.get('csrf_token'):
+                logger.error('CSRF prevented Requested')
                 abort(403)  # CSRF token is invalid
 
     @app.route('/favicon.ico')
