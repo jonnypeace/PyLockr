@@ -37,29 +37,78 @@ ssl-cert=/etc/mysql/ssl/server-cert.pem
 ssl-key=/etc/mysql/ssl/server-key.pem
 EOF
 
-# Generate CA key and certificate
-openssl genrsa 2048 > "$DB_SSL_DIR/ca-key.pem"
-openssl req -new -x509 -nodes -days 365000 \
-    -key "$DB_SSL_DIR/ca-key.pem" -out "$DB_SSL_DIR/ca-cert.pem" \
-    -subj "/C=GB/ST=Scotland/L=Edinburgh/O=homelab/CN=www.example.com"
+# # Generate CA key and certificate
+# openssl genrsa 2048 > "$DB_SSL_DIR/ca-key.pem"
+# openssl req -new -x509 -nodes -days 365000 \
+#     -key "$DB_SSL_DIR/ca-key.pem" -out "$DB_SSL_DIR/ca-cert.pem" \
+#     -subj "/C=GB/ST=Scotland/L=Edinburgh/O=homelab/CN=www.example.com"
 
-# Create server key and certificate, sign it with the CA
-openssl req -newkey rsa:2048 -days 365000 \
-    -nodes -keyout "$DB_SSL_DIR/server-key.pem" -out "$DB_SSL_DIR/server-req.pem" \
-    -subj "/C=GB/ST=Scotland/L=Edinburgh/O=homelab/CN=www.example.com"
-openssl rsa -in "$DB_SSL_DIR/server-key.pem" -out "$DB_SSL_DIR/server-key.pem"
-openssl x509 -req -in "$DB_SSL_DIR/server-req.pem" -days 365000 \
-    -CA "$DB_SSL_DIR/ca-cert.pem" -CAkey "$DB_SSL_DIR/ca-key.pem" -set_serial 01 \
-    -out "$DB_SSL_DIR/server-cert.pem"
+# # Create server key and certificate, sign it with the CA
+# openssl req -newkey rsa:2048 -days 365000 \
+#     -nodes -keyout "$DB_SSL_DIR/server-key.pem" -out "$DB_SSL_DIR/server-req.pem" \
+#     -subj "/C=GB/ST=Scotland/L=Edinburgh/O=homelab/CN=www.example.com"
+# openssl rsa -in "$DB_SSL_DIR/server-key.pem" -out "$DB_SSL_DIR/server-key.pem"
+# openssl x509 -req -in "$DB_SSL_DIR/server-req.pem" -days 365000 \
+#     -CA "$DB_SSL_DIR/ca-cert.pem" -CAkey "$DB_SSL_DIR/ca-key.pem" -set_serial 01 \
+#     -out "$DB_SSL_DIR/server-cert.pem"
 
-# Create client key and certificate, sign it with the CA
-openssl req -newkey rsa:2048 -days 365000 \
-    -nodes -keyout "$DB_SSL_DIR/client-key.pem" -out "$DB_SSL_DIR/client-req.pem" \
-    -subj "/C=GB/ST=Scotland/L=Edinburgh/O=homelab/CN=www.example.com"
-openssl rsa -in "$DB_SSL_DIR/client-key.pem" -out "$DB_SSL_DIR/client-key.pem"
-openssl x509 -req -in "$DB_SSL_DIR/client-req.pem" -days 365000 \
-    -CA "$DB_SSL_DIR/ca-cert.pem" -CAkey "$DB_SSL_DIR/ca-key.pem" -set_serial 01 \
-    -out "$DB_SSL_DIR/client-cert.pem"
+# # Create client key and certificate, sign it with the CA
+# openssl req -newkey rsa:2048 -days 365000 \
+#     -nodes -keyout "$DB_SSL_DIR/client-key.pem" -out "$DB_SSL_DIR/client-req.pem" \
+#     -subj "/C=GB/ST=Scotland/L=Edinburgh/O=homelab/CN=www.example.com"
+# openssl rsa -in "$DB_SSL_DIR/client-key.pem" -out "$DB_SSL_DIR/client-key.pem"
+# openssl x509 -req -in "$DB_SSL_DIR/client-req.pem" -days 365000 \
+#     -CA "$DB_SSL_DIR/ca-cert.pem" -CAkey "$DB_SSL_DIR/ca-key.pem" -set_serial 01 \
+#     -out "$DB_SSL_DIR/client-cert.pem"
+
+
+cat <<EOF > openssl.cnf
+[ req ]
+default_bits       = 2048
+default_md         = sha256
+prompt             = no
+distinguished_name = dn
+
+[ dn ]
+C  = GB
+ST = Scotland
+L  = Edinburgh
+O  = homelab
+CN = www.example.com
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = www.example.com
+EOF
+
+# Generate CA
+openssl genpkey -algorithm RSA -out "$DB_SSL_DIR/ca-key.pem"
+openssl req -new -x509 -key "$DB_SSL_DIR/ca-key.pem" -out "$DB_SSL_DIR/ca-cert.pem" -days 365 -subj "/C=GB/ST=Scotland/L=Edinburgh/O=homelab/CN=CA"
+
+# Generate Server Certificate
+openssl genpkey -algorithm RSA -out "$DB_SSL_DIR/server-key.pem"
+openssl req -new -key "$DB_SSL_DIR/server-key.pem" -out "$DB_SSL_DIR/server-req.pem" -config openssl.cnf
+openssl x509 -req -in "$DB_SSL_DIR/server-req.pem" -CA "$DB_SSL_DIR/ca-cert.pem" \
+    -CAkey "$DB_SSL_DIR/ca-key.pem" -CAcreateserial -out "$DB_SSL_DIR/server-cert.pem" -days 365 -extfile openssl.cnf -extensions v3_req
+
+# Generate Client Certificate
+openssl genpkey -algorithm RSA -out "$DB_SSL_DIR/client-key.pem"
+openssl req -new -key "$DB_SSL_DIR/client-key.pem" -out "$DB_SSL_DIR/client-req.pem" -config openssl.cnf
+openssl x509 -req -in "$DB_SSL_DIR/client-req.pem" -CA "$DB_SSL_DIR/ca-cert.pem" \
+    -CAkey "$DB_SSL_DIR/ca-key.pem" -CAcreateserial -out "$DB_SSL_DIR/client-cert.pem" -days 365 -extfile openssl.cnf -extensions v3_req
+
+# Output Verification
+echo "Server Certificate Details:"
+openssl x509 -in "$DB_SSL_DIR/server-cert.pem" -noout -text
+openssl verify -CAfile "$DB_SSL_DIR/ca-cert.pem" "$DB_SSL_DIR/server-cert.pem"
+
+echo "Client Certificate Details:"
+openssl x509 -in "$DB_SSL_DIR/client-cert.pem" -noout -text
+openssl verify -CAfile "$DB_SSL_DIR/ca-cert.pem" "$DB_SSL_DIR/client-cert.pem"
 
 echo "SSL certificates and keys generated in $DB_SSL_DIR"
 echo "To connect to MariaDB server using the mysql client:"
