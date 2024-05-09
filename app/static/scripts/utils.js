@@ -296,19 +296,6 @@ async function finalExchange(edekBase64, ivB64, csrfToken){
     return finalResponse.ok;
 }
 
-async function hashPassword(password) {
-    // Encode the password as UTF-8
-    const msgBuffer = new TextEncoder().encode(password);
-
-    // Hash the password
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-
-    // Convert the ArrayBuffer to a hex string
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    return hashHex;
-}
 
 async function generateAndEncryptDEK(password) {
     const dek = window.crypto.getRandomValues(new Uint8Array(32)); // For a 256-bit key
@@ -355,9 +342,49 @@ async function decryptField(dek, data, iv) {
     return new TextDecoder().decode(decrypted);
 }
 
+async function encryptLoginPassword(password) {
+    const encodedPass = new TextEncoder().encode(password);
+    const publicKeyPem = document.querySelector('input[name="publicAES"]').value;
+    const publicKey = await importPublicKey(publicKeyPem)
+    const encryptedData = await window.crypto.subtle.encrypt(
+        {
+            name: "RSA-OAEP"
+        },
+        publicKey,
+        encodedPass
+    );
+    const encryptedPass = arrayBufferToBase64(new Uint8Array(encryptedData))
+    return {encryptedPass: encryptedPass}
+}
 
-// Properly export your functions
+async function importPublicKey(pem) {
+    // Fetch your public key from a PEM file or HTML element
+    const binaryDerString = window.atob(pem.split('\n').slice(1, -2).join(''));
+    const binaryDer = str2ab(binaryDerString);
+
+    return window.crypto.subtle.importKey(
+        'spki',
+        binaryDer,
+        {
+            name: "RSA-OAEP",
+            hash: {name: "SHA-256"}
+        },
+        true,
+        ["encrypt"]
+    );
+}
+
+function str2ab(str) {
+    const buffer = new ArrayBuffer(str.length);
+    let bufferView = new Uint8Array(buffer);
+    for (let i = 0, strLen = str.length; i < strLen; i++) {
+        bufferView[i] = str.charCodeAt(i);
+    }
+    return buffer;
+}
+
+
 export { base64ToArrayBuffer, arrayBufferToBase64, decryptDEK,
          keyPairGenerate, importServerPublicKey, getSharedSecret, deriveAESKeyFromSharedSecret, reEncryptDEKWithSharedSecret,
          keyExchangeShare, finalExchange, getDek, getEdek, decryptData, encryptStringWithAesGcm, importAesKeyFromBuffer,
-         hashPassword, generateAndEncryptDEK, decryptField};
+         generateAndEncryptDEK, decryptField, encryptLoginPassword};

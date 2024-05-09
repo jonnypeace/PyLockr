@@ -85,10 +85,10 @@ def update_initial_setup(username)-> bool:
             return False
 
 
-def add_user(username, hashed_password, edek, iv, salt):
+def add_user(username, password, edek, iv, salt):
     '''Add a new user with a hashed password to the database.'''
     #user_id = str(uuid.uuid4())
-    hashed_password = generate_password_hash(hashed_password, method='pbkdf2:sha256')
+    hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
     encrypted_otp = encrypt_data(pyotp.random_base32())
     #id=user_id,
     new_user = User(username=username,
@@ -336,7 +336,7 @@ class RedisComms:
             self.redis_client.set(f"user:{user_id}:dek", enc_dek, ex=1800)  # Expires in 30mins
             logger.info("DEK sent successfully.")
         except Exception as e:
-            logger.error(f"Error sending DEK")
+            logger.error(f"Error sending DEK {e}")
 
     def get_secret(self, user_id):
         try:

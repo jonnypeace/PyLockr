@@ -6,6 +6,7 @@
     </div>
     <form id="loginForm" action="/login" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="publicAES" value="{{ public_key }}">
         <input type="hidden" name="dek">
         <input type="text" name="username" placeholder="Username" required>
         <input type="password" name="password" placeholder="Password" required>

@@ -2,7 +2,7 @@
 
 from . import auth
 from flask import render_template, request, redirect, url_for, session, flash, current_app, make_response, g, jsonify
-import re,secrets, os
+import re,secrets, os, uuid
 from app.utils.db_utils import (authenticate_user, add_user, update_user_password,
                                 decrypt_data, update_initial_setup, retrieve_edek,
                                 validate_hashed_password, RedisComms, encrypt_data,
@@ -17,12 +17,13 @@ import pyotp, qrcode, io, base64
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.asymmetric import padding
 
 logger = PyLockrLogs(name='Auth')
 
@@ -73,6 +74,50 @@ def check_remember_me_cookie(user_id):
             return False
     return False
 
+def rsa_auth():
+    # Generate private key
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+
+    # Generate public key
+    public_key = private_key.public_key()
+
+    # Serialize the public key to PEM format for easy sharing
+    pem_public_key = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode('utf-8')
+
+    # Serialize the private key to PEM format for secure storage
+    pem_private_key = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),  # You can also use password-based encryption here
+    )
+
+    return pem_public_key, pem_private_key
+
+
+def decrypt_password(b64_password, private_key_pem):
+    private_key = serialization.load_pem_private_key(
+        private_key_pem,
+        password=None,
+    )
+    encrypted_password = base64.b64decode(b64_password)
+    # Decrypt the password
+    decrypted_password = private_key.decrypt(
+        encrypted_password,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    ).decode('utf-8')
+    return decrypted_password
+
+
 class BaseAuthView(MethodView):
     '''
     if user_id is not in session, redirect to home/login page
@@ -86,7 +131,7 @@ class BaseAuthView(MethodView):
         user_id = session.get('user_id') or session.get('temp_user_id')
 
         if user_id is None:
-            return redirect(url_for('main.home'))
+            return redirect(url_for('auth.login'))
         
         # If user_id is in session, extend DEK TTL in Redis
         self.extend_dek_ttl(user_id)
@@ -102,6 +147,15 @@ class BaseAuthView(MethodView):
             logger.error(f"Error extending DEK TTL for user {user_id}")
             # Handle the error as appropriate for your application
 
+class TempAuthView(MethodView):
+    '''
+    if user_id is not in session, redirect to home/login page
+    '''
+    decorators = [limiter.limit("7 per minute")]
+    
+    def __init__(self):
+        self.redis_client = RedisComms()  # Initialize your Redis communication class
+    
 
 class Logout(MethodView):
     def post(self):
@@ -112,7 +166,7 @@ class Logout(MethodView):
         redis_client.delete_dek(session['user_id'])
         session.clear()
         flash('You have been logged out.', 'alert alert-ok')
-        return redirect(url_for('main.home'))
+        return redirect(url_for('auth.login'))
 auth.add_url_rule('/logout', view_func=Logout.as_view('logout'))
 
 
@@ -153,14 +207,20 @@ class SendDek(BaseAuthView):
 auth.add_url_rule('/send_dek', view_func=SendDek.as_view('send_dek'))
 
 
-class Authenticate(MethodView):
-    decorators = [limiter.limit("7 per minute")]
+class Authenticate(TempAuthView):
     def post(self):
         data = request.get_json()
         username = sanitizer.sanitize(data['username'])
-        hashed_password = data['password']
+        b64_password = data['password']
+        private_key_pem = self.redis_client.get_dek(session['private_key_id'])
+        if not is_valid_base64(b64_password):
+            logger.error('Invalid B64 received from client')
+            flash(f'Base64 Error', 'alert alert-error')
+            return redirect(url_for('auth.login'))
+
+        decrypted_password = decrypt_password(b64_password, private_key_pem)
         # Verification logic here...
-        user = authenticate_user(username, hashed_password)
+        user = authenticate_user(username, decrypted_password)
         if user:
             session['temp_user_id'] = user.id # Needed for 2FA and storing dek in redis
             # Assuming get_user_edek_iv is a function that retrieves the EDEK and IV for the user
@@ -225,11 +285,14 @@ class SharedSecretDecrypt(BaseAuthView):
 auth.add_url_rule('/secretprocessing', view_func=SharedSecretDecrypt.as_view('secretprocessing'))
 
 
-class Login(MethodView):
-    decorators = [limiter.limit("7 per minute")]
+class Login(TempAuthView):
     def get(self):
+        pem_public_key, pem_private_key = rsa_auth()
         # Render the template as usual
-        return render_template('login.html', nonce=g.nonce)
+        key_id = str(uuid.uuid4())
+        session['private_key_id'] = key_id
+        self.redis_client.send_dek(key_id, pem_private_key)
+        return render_template('login.html', nonce=g.nonce, public_key=pem_public_key)
 
     def post(self):
         '''
@@ -238,17 +301,21 @@ class Login(MethodView):
         '''
         
         username = sanitizer.sanitize(request.form['username'])
-        hashed_password = request.form['password']
-        
-        logger.info(hashed_password)
-        
+        b64_password = request.form['password']
+        private_key_pem = self.redis_client.get_dek(session['private_key_id'])
+
+        if not is_valid_base64(b64_password):
+            logger.error('Invalid B64 received from client')
+            flash(f'Base64 Error', 'alert alert-error')
+            return redirect(url_for('auth.login'))
+
+        decrypted_password = decrypt_password(b64_password, private_key_pem)
         requested_ip = get_remote_address()
-        user = authenticate_user(username, hashed_password)
+        user = authenticate_user(username, decrypted_password)
         
         def check_change_user_pass():
             if user.change_user_pass:
-                redis_client = RedisComms()
-                new_dek = redis_client.get_dek(user.id)
+                new_dek = self.redis_client.get_dek(user.id)
                 old_dek = decrypt_data(user.temporary_dek, decoder=False)
                 if encrypt_with_new_dek(old_dek, new_dek, user.id):
                     logger.info(f'User {user.username} Completed Change User Password, and re-encrypted all user data')
@@ -280,8 +347,9 @@ class Login(MethodView):
             flash('Invalid username or password.', 'alert alert-error')
             logger.error(f'Failed login attempt {requested_ip=} {username=}')
             return redirect(url_for('auth.login'))
-
-auth.add_url_rule('/login', view_func=Login.as_view('login'))
+        
+auth.add_url_rule('/', view_func=Login.as_view('login'))
+auth.add_url_rule('/login', view_func=Login.as_view('login_page'))
 
 class ChangeUserPass(BaseAuthView):
     '''
@@ -341,29 +409,34 @@ class ChangeUserPass(BaseAuthView):
 
 auth.add_url_rule('/change_user_password', view_func=ChangeUserPass.as_view('change_user_password'))
 
-class SignUP(MethodView):
-    decorators = [limiter.limit("7 per minute")]
+class SignUP(TempAuthView):
     def get(self):
-        return render_template('signup.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'], nonce=g.nonce)
+        pem_public_key, pem_private_key = rsa_auth()
+        # Render the template as usual
+        key_id = str(uuid.uuid4())
+        session['private_key_id'] = key_id
+        self.redis_client.send_dek(key_id, pem_private_key)
+        return render_template('signup.html', public_key=pem_public_key, min_password_length=current_app.config['MIN_PASSWORD_LENGTH'], nonce=g.nonce)
     
     def post(self):
         
         username = sanitizer.sanitize(request.form['username'])
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
+        b64_password = request.form['password']
+        b64_confirm_password = request.form['confirm_password']
         encrypted_dek_b64 = request.form['encryptedDEK']
         iv_b64 = request.form['iv']
         salt_b64 = request.form['saltB64']
         requested_ip = get_remote_address()
 
-        if not is_valid_base64(encrypted_dek_b64, iv_b64, salt_b64):
+        if not is_valid_base64(encrypted_dek_b64, iv_b64, salt_b64, b64_password, b64_confirm_password):
+            logger.error('Invalid B64 received from client')
             flash(f'Base64 Error', 'alert alert-error')
             return redirect(url_for('auth.signup'))
 
-        # Password complexity check
-        if not validate_hashed_password(password):
-            flash(f'Passwords have failed security checks', 'alert alert-error')
-            return redirect(url_for('auth.signup'))
+        private_key_pem = self.redis_client.get_dek(session['private_key_id'])
+
+        password = decrypt_password(b64_password, private_key_pem)
+        confirm_password = decrypt_password(b64_password, private_key_pem)
 
         # New passwords match check
         if password != confirm_password:
@@ -375,7 +448,7 @@ class SignUP(MethodView):
         # Assume a function `create_user_account` that handles this.
         if add_user(username, password, encrypted_dek_b64, iv_b64, salt_b64):
             flash('User successfully registered.', 'alert alert-ok')
-            return redirect(url_for('main.home'))
+            return redirect(url_for('auth.login'))
         else:
             logger.error(f'Signup unsuccessful, username possibly in use')
             flash('Username already exists. Please choose a different one.', 'alert alert-error')

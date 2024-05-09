@@ -1,4 +1,4 @@
-import { base64ToArrayBuffer, decryptDEK, keyPairGenerate, keyExchangeShare, hashPassword} from './utils.js';
+import { base64ToArrayBuffer, decryptDEK, keyPairGenerate, keyExchangeShare, encryptLoginPassword} from './utils.js';
 
 
 
@@ -19,7 +19,6 @@ async function authenticateUser(username, password, csrfToken) {
     return { encryptedDEK: encryptedDEK, iv: iv, saltAuth: saltAuth };
 }
 
-
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('loginForm');
 
@@ -28,11 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const usernameField = form.querySelector('input[name="username"]');
         const passwordField = form.querySelector('input[name="password"]');
-        const hashedPassword = await hashPassword(passwordField.value);
         const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-
+        
         try {
-            const { encryptedDEK, iv, saltAuth } = await authenticateUser(usernameField.value, hashedPassword, csrfToken)
+            const encryptedPass = await encryptLoginPassword(passwordField.value)
+            const { encryptedDEK, iv, saltAuth } = await authenticateUser(usernameField.value, encryptedPass.encryptedPass, csrfToken)
             // Convert from Base64 to ArrayBuffer before passing to decryptDEK
             const encryptedDEKArrayBuffer = base64ToArrayBuffer(encryptedDEK);
             const ivArrayBuffer = base64ToArrayBuffer(iv);
@@ -46,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const finalResponse = await keyExchangeShare(publicKey, privateKey, salt, saltB64, dek, info, csrfToken);
             if (finalResponse) {
                 // Assuming async operations are successful...
-                passwordField.value = hashedPassword
+                passwordField.value = encryptedPass.encryptedPass;
                 form.submit(); // Proceed with traditional form submission
             }
             else {

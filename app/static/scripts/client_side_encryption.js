@@ -1,4 +1,4 @@
-import {arrayBufferToBase64, hashPassword, generateAndEncryptDEK} from './utils.js';
+import {arrayBufferToBase64, generateAndEncryptDEK, encryptLoginPassword} from './utils.js';
 
 
 document.addEventListener('DOMContentLoaded', (event) => {
@@ -13,10 +13,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
             if (password === confirmPassword) {
                 const username = document.querySelector('input[name="username"]').value;
+                const b64Password = await encryptLoginPassword(password);
+                const b64ConfirmPassword = await encryptLoginPassword(confirmPassword);
 
                 try {
-                    const hashedPassword = await hashPassword(password);
-                    const hashedConfirmPassword = await hashPassword(confirmPassword);
                     const { encryptedDEK, iv, salt } = await generateAndEncryptDEK(password);
 
                     // Convert the ArrayBuffer to Base64
@@ -30,8 +30,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     document.querySelector('input[name="saltB64"]').value = saltB64;
                     document.querySelector('input[name="username"]').value = username;
                     // Before submitting the form programmatically, clear the password fields
-                    document.querySelector('input[name="password"]').value = hashedPassword;
-                    document.querySelector('input[name="confirm_password"]').value = hashedConfirmPassword;
+                    document.querySelector('input[name="password"]').value = b64Password.encryptedPass;
+                    document.querySelector('input[name="confirm_password"]').value = b64ConfirmPassword.encryptedPass;
             
                     // Indicate that the form is being submitted by this script
                     isFormSubmitted = true;
