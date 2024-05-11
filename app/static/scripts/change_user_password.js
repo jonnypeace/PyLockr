@@ -1,4 +1,4 @@
-import { arrayBufferToBase64, hashPassword, generateAndEncryptDEK} from './utils.js';
+import { arrayBufferToBase64, generateAndEncryptDEK, encryptLoginPassword} from './utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     let isFormSubmitted = false; // Flag to prevent infinite submission loop
@@ -15,9 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 try {
                     if (confirm("Are you sure you want to proceed? PLEASE LOG BACK IN IMMEDIATELY TO COMPLETE THE PROCESS")) {
-                        const hashedCurrentPassword = await hashPassword(currentPassword);
-                        const hashedNewPassword = await hashPassword(newPassword);
-                        const hashedConfirmPassword = await hashPassword(confirmPassword);
+                        const encryptedCurrentPass = await encryptLoginPassword(currentPassword);
+                        const encryptedNewPass = await encryptLoginPassword(newPassword);
+                        const encryptedConfirmPass = await encryptLoginPassword(confirmPassword);
                         const { encryptedDEK, iv, salt } = await generateAndEncryptDEK(newPassword);
 
                         // Convert the ArrayBuffer to Base64
@@ -29,9 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.querySelector('input[name="encryptedDEK"]').value = encryptedDEKBase64;
                         document.querySelector('input[name="iv"]').value = ivBase64;
                         document.querySelector('input[name="salt"]').value = saltBase64;
-                        document.querySelector('input[name="current_password"]').value = hashedCurrentPassword;
-                        document.querySelector('input[name="new_password"]').value = hashedNewPassword;
-                        document.querySelector('input[name="confirm_new_password"]').value = hashedConfirmPassword;
+                        document.querySelector('input[name="current_password"]').value = encryptedCurrentPass.encryptedPass;
+                        document.querySelector('input[name="new_password"]').value = encryptedNewPass.encryptedPass;
+                        document.querySelector('input[name="confirm_new_password"]').value = encryptedConfirmPass.encryptedPass;
                         
                         // Indicate that the form is being submitted by this script
                         isFormSubmitted = true;
