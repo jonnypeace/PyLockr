@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         scrollY: 400,
         deferRender: true,
         scroller: {
-        displayBuffer: 20 // Adjust this value to preload more rows
+        displayBuffer: 50 // Adjust this value to preload more rows
         }
     });
   });
