@@ -357,14 +357,19 @@ class ChangeUserPass(BaseAuthView):
     Default minimum password length is 12.
     '''
     def get(self):
+        pem_public_key, pem_private_key = rsa_auth()
         # Render the template as usual
-        return render_template('change_user_password.html', min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
+        key_id = str(uuid.uuid4())
+        session['private_key_id'] = key_id
+        self.redis_client.send_dek(key_id, pem_private_key)
+       # Render the template as usual
+        return render_template('change_user_password.html',nonce=g.nonce, public_key=pem_public_key, min_password_length=current_app.config['MIN_PASSWORD_LENGTH'])
 
     def post(self):
         try:
-            current_password = request.form['current_password'] # needs to be hashed
-            new_password = request.form['new_password'] # needs to be hashed
-            confirm_new_password = request.form['confirm_new_password'] # needs to be hashed
+            b64_current_password = request.form['current_password'] # needs to be hashed
+            b64_new_password = request.form['new_password'] # needs to be hashed
+            b64_confirm_new_password = request.form['confirm_new_password'] # needs to be hashed
             edek = request.form['encryptedDEK']
             iv = request.form['iv']
             salt = request.form['salt']
@@ -372,6 +377,16 @@ class ChangeUserPass(BaseAuthView):
             logger.error(f'Requested information inappropriate')
             return redirect(url_for('auth.change_user_password'))
 
+        private_key_pem = self.redis_client.get_dek(session['private_key_id'])
+
+        if not is_valid_base64(b64_current_password, b64_new_password, b64_confirm_new_password):
+            logger.error('Invalid B64 received from client')
+            flash(f'Base64 Error', 'alert alert-error')
+            return redirect(url_for('auth.change_user_password'))
+
+        current_password = decrypt_password(b64_current_password, private_key_pem)
+        new_password = decrypt_password(b64_new_password, private_key_pem)
+        confirm_new_password = decrypt_password(b64_confirm_new_password, private_key_pem)
 
         if not is_valid_base64(edek, iv, salt):
             raise ValidB64Error('Change User Pass received invalid base64 encoded data')
@@ -380,11 +395,6 @@ class ChangeUserPass(BaseAuthView):
         username = session.get('username')
 
         temporary_dek = encrypt_data(self.redis_client.get_dek(session['user_id']), encoder=False)
-
-        # Password complexity check
-        if not validate_hashed_password(new_password):
-            flash(f'Passwords have failed security checks', 'alert alert-error')
-            return redirect(url_for('auth.change_user_password'))
 
         # New passwords match check
         if new_password != confirm_new_password:
@@ -396,8 +406,9 @@ class ChangeUserPass(BaseAuthView):
         try:
             if update_user_password(username, current_password, new_password, edek, iv, salt, temporary_dek):
                 flash('Password successfully updated.', 'alert alert-ok')
-                session.clear()
-                return redirect(url_for('main.home'))
+                response = redirect(url_for('auth.login'))
+                del session['user_id']
+                return response
             else:
                 flash('Authenticated Password Failed', 'alert alert-error')
                 return redirect(url_for('auth.change_user_password'))
