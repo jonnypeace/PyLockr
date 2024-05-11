@@ -28,7 +28,7 @@ class BaseAuthenticatedView(MethodView):
     
     def dispatch_request(self, *args, **kwargs):
         if 'user_id' not in session:
-            return redirect(url_for('main.home'))
+            return redirect(url_for('auth.login'))
         
         # If user_id is in session, extend DEK TTL in Redis
         self.extend_dek_ttl(session['user_id'])
@@ -151,14 +151,15 @@ class UploadCSV(BaseAuthenticatedView):
 
 main.add_url_rule('/upload_csv', view_func=UploadCSV.as_view('upload_csv'))
 
-class Home(MethodView):
-    def get(self):
-        content = render_template('login.html')
-        # Create a response object from the rendered template
-        response = make_response(content)
-        return response
+# class Home(MethodView):
+#     def get(self):
+#         return redirect(url_for('auth.login'))
+#         content = render_template('login.html')
+#         # Create a response object from the rendered template
+#         response = make_response(content)
+#         return response
 
-main.add_url_rule('/', view_func=Home.as_view('home'))
+# main.add_url_rule('/', view_func=Home.as_view('home'))
 
 class Dashboard(BaseAuthenticatedView):
     def get(self):
