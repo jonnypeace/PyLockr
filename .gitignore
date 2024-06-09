@@ -8,3 +8,5 @@ config/ssl
 config/nginx/ssl
 *.pem
 *.log
+config/ssl.tar
+requirements.txt.bk

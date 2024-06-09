@@ -1,0 +1,61 @@
+name: CI to GHCR
+
+on:
+  push:
+    branches:
+      - main  # Triggers on pushes to the main branch
+  pull_request:
+    branches:
+      - main  # Triggers on PRs to the main branch
+
+jobs:
+  build-and-push-web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Web Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./dockerfiles/Dockerfile  # Specify the path to the first Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/pylockr:1.0
+
+  build-and-push-scheduler:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Scheduler Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./dockerfiles/Dockerfile_Scheduler  # Specify the path to the second Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/pylockr_scheduler:1.0
+
