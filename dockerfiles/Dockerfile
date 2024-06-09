@@ -9,8 +9,8 @@ RUN adduser --disabled-password --gecos '' --uid 1000 appuser
 WORKDIR /usr/src/app
 
 # Copy the application code into the container
-# COPY . .
-COPY ./requirements.txt ./requirements.txt
+COPY . .
+#COPY ./requirements.txt ./requirements.txt
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
