@@ -15,7 +15,13 @@ from collections import defaultdict
 from typing import Type
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
-sanitizer = Sanitizer()  # Used for name and username
+# Custom sanitizer to strip all HTML
+sanitizer = Sanitizer({
+    'tags': {},         # No tags allowed
+    'attributes': {},   # No attributes allowed
+    'empty': set(),     # No empty tags allowed
+})
+
 logger = PyLockrLogs(name='PyLockr_Main')
 
 
