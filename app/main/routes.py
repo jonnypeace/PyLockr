@@ -15,7 +15,13 @@ from collections import defaultdict
 from typing import Type
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
-sanitizer = Sanitizer()  # Used for name and username
+# Custom sanitizer to strip all HTML
+sanitizer = Sanitizer({
+    'tags': {},         # No tags allowed
+    'attributes': {},   # No attributes allowed
+    'empty': set(),     # No empty tags allowed
+})
+
 logger = PyLockrLogs(name='PyLockr_Main')
 
 
@@ -410,7 +416,6 @@ class Backup(BaseAuthenticatedView):
         
         password_b64 = request.form.get('b64Pass')
         iv_b64 = request.form.get('ivPass')
-        print(f'{password_b64=}')
         if not password_b64:
             flash('Password is required for backup.', 'alert alert-error')
             return redirect(url_for('main.dashboard'))
