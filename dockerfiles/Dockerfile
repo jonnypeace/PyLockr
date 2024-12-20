@@ -1,6 +1,6 @@
 FROM python:3.11
 
-RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and switch to it
 RUN adduser --disabled-password --gecos '' --uid 1000 appuser
