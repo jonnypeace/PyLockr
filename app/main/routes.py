@@ -3,7 +3,7 @@ from app.utils.db_utils import *
 from app.utils.pylockr_logging import *
 from flask import current_app, render_template, request, redirect, url_for, session, flash, send_file, make_response, g, after_this_request, abort, jsonify
 from datetime import timedelta, datetime
-from html_sanitizer import Sanitizer
+# from html_sanitizer import Sanitizer
 from flask.views import MethodView
 import re, os, csv, py7zr, time, io, csv, json, secrets, base64, redis
 from flask_limiter.util import get_remote_address
@@ -16,11 +16,11 @@ from typing import Type
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
 # Custom sanitizer to strip all HTML
-sanitizer = Sanitizer({
-    'tags': {},         # No tags allowed
-    'attributes': {},   # No attributes allowed
-    'empty': set(),     # No empty tags allowed
-})
+# sanitizer = Sanitizer({
+#     'tags': {},         # No tags allowed
+#     'attributes': {},   # No attributes allowed
+#     'empty': set(),     # No empty tags allowed
+# })
 
 logger = PyLockrLogs(name='PyLockr_Main')
 

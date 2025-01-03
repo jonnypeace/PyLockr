@@ -67,12 +67,13 @@ async function encryptAndSetField(form, field, dek) {
 
 // This is for the editPass form for viewing
 async function updateEditPass(dek, data) {
-    document.querySelector('input[name="Name"]').value = await decryptField(dek, data.Name, data.ivName);
-    document.querySelector('input[name="Username"]').value = await decryptField(dek, data.Username, data.ivUsername);
-    document.querySelector('input[name="Category"]').value = await decryptField(dek, data.Category, data.ivCategory);
-    document.querySelector('input[name="Password"]').value = await decryptField(dek, data.Password, data.ivPassword);
-    document.getElementById('notes').value = await decryptField(dek, data.Notes, data.ivNotes);
+    document.querySelector('input[name="Name"]').value = data.Name ? await decryptField(dek, data.Name, data.ivName) : '';
+    document.querySelector('input[name="Username"]').value = data.Username ? await decryptField(dek, data.Username, data.ivUsername) : '';
+    document.querySelector('input[name="Category"]').value = data.Category ? await decryptField(dek, data.Category, data.ivCategory) : '';
+    document.querySelector('input[name="Password"]').value = data.Password ? await decryptField(dek, data.Password, data.ivPassword) : '';
+    document.getElementById('notes').value = data.Notes ? await decryptField(dek, data.Notes, data.ivNotes) : '';
 }
+
 
 document.addEventListener('DOMContentLoaded', async () => {
     
