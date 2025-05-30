@@ -48,7 +48,8 @@ services:
       - pylockr-network
 
   redis-dek:
-    image: redis:alpine
+    # image: redis:alpine
+    image: valkey/valkey
     volumes:
       - ./config/ssl/server-cert.pem:/certs/server-cert.pem
       - ./config/ssl/server-key.pem:/certs/server-key.pem
@@ -60,7 +61,8 @@ services:
       - pylockr-network
 
   redis:
-    image: redis:alpine
+    # image: redis:alpine
+    image: valkey/valkey
     # command: redis-server
     command: ["redis-server", "--requirepass", "${REDIS_LIMITER_PASSWORD}"]
     restart: unless-stopped
