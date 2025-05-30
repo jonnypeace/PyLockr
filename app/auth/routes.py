@@ -27,12 +27,14 @@ from cryptography.hazmat.primitives.asymmetric import padding
 
 logger = PyLockrLogs(name='Auth')
 
-# Custom sanitizer to strip all HTML
-sanitizer = Sanitizer({
-    'tags': {},         # No tags allowed
-    'attributes': {},   # No attributes allowed
-    'empty': set(),     # No empty tags allowed
-})
+# # Custom sanitizer to strip all HTML
+# sanitizer = Sanitizer({
+#     'tags': {},         # No tags allowed
+#     'attributes': {},   # No attributes allowed
+#     'empty': set(),     # No empty tags allowed
+# })
+
+sanitizer = Sanitizer()
 
 # redis_client: RedisComms = RedisComms()
 
