@@ -5,6 +5,7 @@ blinker==1.9.0
 Brotli==1.1.0
 cffi==1.17.1
 click==8.2.1
+commonmark==0.9.1
 cryptography==45.0.3
 Deprecated==1.2.18
 distlib==0.3.9
@@ -44,13 +45,13 @@ pycryptodomex==3.23.0
 Pygments==2.19.1
 pyotp==2.9.0
 pypng==0.20220715.0
-pyppmd==1.2.0
+pyppmd==1.1.0
 python-dotenv==1.1.0
 pytz==2025.2
 pyzstd==0.17.0
 qrcode==8.2
 redis==6.2.0
-rich==14.0.0
+rich==13.0.0
 setuptools==80.9.0
 six==1.17.0
 soupsieve==2.7
