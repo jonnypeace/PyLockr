@@ -1,4 +1,4 @@
-FROM python:3.12
+FROM python:3.13
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
