@@ -1,6 +1,6 @@
 # PyLockr
 
-A simple password manager written mostly in python using the Flask Library. PyLockr builds with docker have been implemented as the go-to choice for using this application. Users should think carefully about setting this up behind an HTTPS connection, using something like certbot with nginx. I will be detailing these steps in a future README.
+A simple password manager written mostly in python using the Flask Library. PyLockr builds use docker and there are prebuilt images hosted here on github. Users should think carefully about setting this up behind an HTTPS connection, using something like certbot with nginx. I will be detailing these steps in a future README.
 
 ## Setting up the Virtual Environment on Arch Linux
 
@@ -10,7 +10,7 @@ Some development packages to install
 sudo pacman -S base-devel python-pip python-virtualenv
 ```
 
-At this point, I use vscode and use a ctrl+p and search for env to set up a virtual environment, but I believe the same can be achieved from the terminal...
+At this point, I use vscode and use a ctrl+p and search for env to set up a virtual environment, but you can run a terminal like so...
 
 ```bash
 python -m venv venv_name
@@ -77,11 +77,11 @@ There is also a setup.sh bash script which will generate the ssl keys in a path 
 
 ## Docker Builds
 
-First of all, you'll need docker, docker-compose...
+First of all, you'll need docker, docker compose...
 
-```bash
-sudo pacman -S docker-compose docker
-```
+I would follow the docker install recommended on dockers website.
+
+[Docker Website](https://docs.docker.com/engine/install/)
 
 Check the status, and enable docker if needed..
 
@@ -91,7 +91,8 @@ sudo systemctl enable --now docker
 sudo systemctl status docker
 ```
 
-Add user to docker group
+Add user to docker group. I am not covering rootless docker here.
+
 ```bash
 sudo usermod -aG docker $USER
 ```
@@ -114,7 +115,7 @@ docker-compose up
 
 This web app has been designed to do several things, mostly automatically where possible.
 
-We set up 4 services and a network to keep the web app services segragated from any other docker instances. In my docker-compose, you will see that I have tried my best to limit each services capability. The only ports exposed will be on the web app itself. In a future version, i may provide an option to expose the mariadb ports so we can tap into the database with a desktop script, using wofi or demnu.
+We set up 4 services and a network to keep the web app services segragated from any other docker instances. In my docker-compose, you will see that I have tried my best to limit each services capability. The only ports exposed will be on the web app itself. In a future version, i may provide an option to expose the mariadb ports so we can tap into the database with a desktop script, using wofi or demnu, or maybe some sort of flask API.
 
 Since this webapp will be using Key Encryption for Encryption at rest, the entire database will be encrypted. I have supplied a script to generate the keys and SSL certs, and config so mariadb can be safely communicated with over a network. The user authentication password is hashed, the username is sanitized. All passwords and notes entered into the database go through a second phase of encryption, which is what the FERNET_KEY is for.
 
@@ -435,7 +436,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./config/nginx/ssl/p
 
 ## DHPARAM
 
-This adds additional security, something to do with helpng secure key exchange. Remember to change this relative path ./config/nginx... to whatever directory you are choosing. 
+This adds additional security surrounding the key exchange. Remember to change this relative path ./config/nginx... to whatever directory you are choosing. 
 
 ```bash
 openssl dhparam -out ./config/nginx/ssl/dhparam.pem 4096
@@ -456,6 +457,8 @@ I think navigating around is self explanatory. There are not too many webpages, 
 * Session token expiry (cookie expiry)
 * Nonce token with CSP for safe javascript useage and styling
 * CDN files hashed and checked
+* 2FA implemented
+
 
 Features i'd like to implement...
 
@@ -469,8 +472,10 @@ Limitations...
 
 * Testing. I'm one person, learning as I go.
 * Uncertain how imports from other password managers will work. Only tested with Brave browser, firefox and Vaultwarden
-* Documentation. This might take some time to get right, but it is a simple web app, and hopefully i've explained most of it.
-* No 2FA. I've been on the fence with this, but it's probably needed. I have planned to use this behind wireguard, in isolation, behind reverse proxies etc etc. Not everyone will do this though, so if you really want this let me know.
+* Documentation. This might take some time to get right, but it is a simple web app, and hopefully i've explained most of it. There are images built here on git hub, so you don't need to do the docker build. I will make a write up about this in the next few weeks.
+* No penetration audits, and while I have tried my best to get right, I cant gaurantee safety. I would like further collaboration with developers with encryption/javascript experience.
+* If you are not tech savvy, I would only run this locally.
+* Due to implementation, and not a single page site, I have implemented the Diffie-Hellman secret key exchange method so users don't have to continually provide password prompts... However, due to this, the users DEK will be decrypted by the user at login through the browser, and then stored temporarily as en edek on the server in memory, and all further requests take place using Diffie-Hellman. For this reason, this web app is better suited for homelabs/personal use.
 
 ### Contact Details
 
