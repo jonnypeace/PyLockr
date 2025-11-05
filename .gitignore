@@ -10,3 +10,4 @@ config/nginx/ssl
 *.log
 config/ssl.tar
 requirements.txt.bk
+*.sql
