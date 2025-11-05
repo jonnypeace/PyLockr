@@ -77,6 +77,7 @@ services:
       - MARIADB_USER=${MYSQL_USER}
       - MARIADB_PASSWORD=${MYSQL_PASSWORD}
       - MARIADB_DATABASE=pylockrdb
+      - MARIADB_AUTO_UPGRADE=1
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./config/secure-init.sql:/docker-entrypoint-initdb.d/secure-init.sql
@@ -85,6 +86,7 @@ services:
       - ./config/ssl/server-cert.pem:/etc/mysql/ssl/server-cert.pem
       - ./config/ssl/server-key.pem:/etc/mysql/ssl/server-key.pem
       - ./config/ssl/ca-cert.pem:/etc/mysql/ssl/ca-cert.pem
+      # - ./mydb.sql:/docker-entrypoint-initdb.d/dump.sql:ro
     restart: unless-stopped
     networks:
       - pylockr-network
