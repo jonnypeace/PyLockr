@@ -32,7 +32,7 @@ jobs:
           context: .
           file: ./Dockerfile.build
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/pylockr:1.0.11
+          tags: ghcr.io/${{ github.repository_owner }}/pylockr:1.0.12
 
   build-and-push-scheduler:
     runs-on: ubuntu-latest
@@ -57,5 +57,5 @@ jobs:
           context: .
           file: ./Dockerfile_Scheduler.build
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/pylockr_scheduler:1.0.11
+          tags: ghcr.io/${{ github.repository_owner }}/pylockr_scheduler:1.0.12
 
