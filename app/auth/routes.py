@@ -454,7 +454,7 @@ class SignUP(TempAuthView):
         private_key_pem = self.redis_client.get_dek(session['private_key_id'])
 
         password = decrypt_password(b64_password, private_key_pem)
-        confirm_password = decrypt_password(b64_password, private_key_pem)
+        confirm_password = decrypt_password(b64_confirm_password, private_key_pem)
 
         # New passwords match check
         if password != confirm_password:
