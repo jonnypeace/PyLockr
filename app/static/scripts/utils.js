@@ -34,7 +34,7 @@ async function decryptDEK(password, encryptedDEK, iv, salt) {
         {
             "name": "PBKDF2",
             salt: salt, // Ensure this matches signup
-            iterations: 100000,
+            iterations: 600000,
             hash: "SHA-256"
         },
         keyMaterial,
@@ -316,7 +316,7 @@ async function generateAndEncryptDEK(password) {
         {
             "name": "PBKDF2",
             salt: salt,
-            iterations: 100000,
+            iterations: 600000,
             hash: "SHA-256"
         },
         keyMaterial,
