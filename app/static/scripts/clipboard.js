@@ -11,17 +11,46 @@ async function updateTableWithData(data) {
         let username = await decryptField(enKey.dek, data.Username[i], data.ivUsername[i]);
         let category = await decryptField(enKey.dek, data.Category[i], data.ivCategory[i]);
         const row = tableBody.insertRow();
-        row.innerHTML = `
-            <td>${name}</td>
-            <td>${username}</td>
-            <td>${category}</td>
-            <td>
-                <button type="button" class="edit-btn" data-edit-url="/edit_password/${data.id[i]}">Edit</button>
-                <button type="button" class="copy-to-clipboard-btn" data-password-id="${data.id[i]}">Copy to Clipboard</button>
-                <button type="button" class="delete-btn" data-password-id="${data.id[i]}">Delete</button>
-            </td>
-            <td class="checkbox-cell"><input type="checkbox" name="selected_passwords" value="${data.id[i]}"></td>
-        `;
+
+        const nameCell = row.insertCell();
+        nameCell.textContent = name;
+
+        const usernameCell = row.insertCell();
+        usernameCell.textContent = username;
+
+        const categoryCell = row.insertCell();
+        categoryCell.textContent = category;
+
+        const actionsCell = row.insertCell();
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'edit-btn';
+        editBtn.setAttribute('data-edit-url', '/edit_password/' + data.id[i]);
+        editBtn.textContent = 'Edit';
+        actionsCell.appendChild(editBtn);
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'copy-to-clipboard-btn';
+        copyBtn.setAttribute('data-password-id', data.id[i]);
+        copyBtn.textContent = 'Copy to Clipboard';
+        actionsCell.appendChild(copyBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.setAttribute('data-password-id', data.id[i]);
+        deleteBtn.textContent = 'Delete';
+        actionsCell.appendChild(deleteBtn);
+
+        const checkboxCell = row.insertCell();
+        checkboxCell.className = 'checkbox-cell';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'selected_passwords';
+        checkbox.value = data.id[i];
+        checkboxCell.appendChild(checkbox);
     }
 }
 
